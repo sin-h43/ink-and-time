@@ -1,11 +1,16 @@
+"use client";
+
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Plus, Star, Play, Pause, RotateCcw, CloudRain, Waves, Music2, X, Clock,
   ChevronLeft, ChevronRight, Sparkles, AlarmClock, Coffee, BookOpen,
   Dumbbell, Milk, Laptop, UtensilsCrossed, Film, Camera, Cat, Apple,
   ShoppingBag, Moon, Mail, Phone, Users, Droplet, Footprints,
-  NotebookPen, Music, Gift, Heart, Bike, ShowerHead,
+  NotebookPen, Music, Gift, Heart, Bike, ShowerHead, LucideIcon,
 } from "lucide-react";
+import { Task, Importance } from "@/lib/db";
+import { useTasks } from "@/lib/useTasks";
+import { useDoodles } from "@/lib/useDoodles";
 
 /* ---------------------------------- Tokens --------------------------------- */
 const C = {
@@ -26,20 +31,17 @@ const C = {
   gold: "#C69A55",
 };
 
-const FONTS = "@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Patrick+Hand&display=swap');";
 const HAND = "'Patrick Hand', cursive";
 const DISPLAY = "'Caveat', cursive";
 
 /* -------------------------------- Importance -------------------------------- */
-// Three peony shades used everywhere importance shows up: dot on a task, chip in the quick-add row, etc.
-const IMPORTANCE = [
+const IMPORTANCE: { id: Importance; label: string; color: string }[] = [
   { id: "low", label: "Low", color: C.pink2 },
   { id: "medium", label: "Medium", color: C.pink3 },
   { id: "high", label: "High", color: C.pink4 },
 ];
-const importanceColor = (id) => (IMPORTANCE.find((i) => i.id === id) || IMPORTANCE[1]).color;
+const importanceColor = (id: Importance) => (IMPORTANCE.find((i) => i.id === id) || IMPORTANCE[1]).color;
 
-// Peony shades a person can pick to re-tint the calendar day boxes.
 const BOX_SHADES = [
   { id: "paper", label: "Paper", color: C.page },
   { id: "blush", label: "Blush", color: C.pink0 },
@@ -48,30 +50,28 @@ const BOX_SHADES = [
 ];
 
 /* --------------------------------- Helpers --------------------------------- */
-const pad = (n) => (n < 10 ? "0" + n : "" + n);
-const fmtDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const pad = (n: number) => (n < 10 ? "0" + n : "" + n);
+const fmtDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-function offsetDate(days, base = new Date()) {
+function offsetDate(days: number, base: Date = new Date()) {
   const d = new Date(base);
   d.setDate(d.getDate() + days);
   return fmtDate(d);
 }
-function to12h(hhmm) {
+function to12h(hhmm: string | null) {
   if (!hhmm) return "";
   const [h, m] = hhmm.split(":").map(Number);
   const ap = h >= 12 ? "pm" : "am";
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}${m ? ":" + pad(m) : ""}${ap}`;
 }
-let uidCounter = 1000;
-const nextId = () => uidCounter++;
 
-function parseQuickAdd(raw) {
+function parseQuickAdd(raw: string): { title: string; time: string | null } {
   let text = raw.trim();
-  let time = null;
+  let time: string | null = null;
   const timeRegex = /\b(?:at\s+)?(\d{1,2})(:\d{2})?\s*(am|pm)\b/i;
   const m = text.match(timeRegex);
   if (m) {
@@ -81,14 +81,14 @@ function parseQuickAdd(raw) {
     if (ap === "pm" && hour < 12) hour += 12;
     if (ap === "am" && hour === 12) hour = 0;
     time = `${pad(hour)}:${pad(min)}`;
-    text = (text.slice(0, m.index) + text.slice(m.index + m[0].length)).trim();
+    text = (text.slice(0, m.index) + text.slice(m.index! + m[0].length)).trim();
   }
   text = text.replace(/\btomorrow\b/i, "").replace(/\s+/g, " ").trim();
   return { title: text || raw.trim(), time };
 }
 
 /* --------------------------- Smart icon recognition -------------------------- */
-const ICON_RULES = [
+const ICON_RULES: { test: RegExp; Icon: LucideIcon }[] = [
   { test: /gym|workout|exercise|dumbbell/i, Icon: Dumbbell },
   { test: /walk|run|jog|hike/i, Icon: Footprints },
   { test: /bike|cycle/i, Icon: Bike },
@@ -114,13 +114,13 @@ const ICON_RULES = [
   { test: /love|date night|heart/i, Icon: Heart },
   { test: /alarm|wake/i, Icon: AlarmClock },
 ];
-function getSmartIcon(title) {
+function getSmartIcon(title: string): LucideIcon | null {
   for (const rule of ICON_RULES) if (rule.test.test(title)) return rule.Icon;
   return null;
 }
 
 /* --------------------------------- Doodle set -------------------------------- */
-const DOODLES = [
+const DOODLES: { id: string; Icon: LucideIcon; label: string }[] = [
   { id: "alarm", Icon: AlarmClock, label: "wake" },
   { id: "coffee", Icon: Coffee, label: "coffee" },
   { id: "book", Icon: BookOpen, label: "read" },
@@ -147,50 +147,7 @@ const DOODLES = [
   { id: "shower", Icon: ShowerHead, label: "shower" },
 ];
 
-/* ------------------------------- Seed data ---------------------------------- */
-function makeSeed() {
-  uidCounter = 1000;
-  const tasks = [];
-  const titles = ["Morning walk", "Read chapter", "Journal", "Gym session", "Water plants", "Reply to emails", "Tidy desk", "Stretch"];
-  const importances = ["low", "medium", "high"];
-  [-6, -5, -4, -3, -2, -1].forEach((off, idx) => {
-    const date = offsetDate(off);
-    const count = idx === 2 ? 0 : 2 + (idx % 3);
-    for (let i = 0; i < count; i++) {
-      const done = Math.random() > (idx % 2 === 0 ? 0.25 : 0.55);
-      tasks.push({ id: nextId(), date, title: titles[(idx + i) % titles.length], time: i === 0 ? "08:00" : null, completed: done, importance: importances[(idx + i) % 3] });
-    }
-  });
-  const today = fmtDate(new Date());
-  tasks.push(
-    { id: nextId(), date: today, title: "Morning walk", time: "07:00", completed: true, importance: "low" },
-    { id: nextId(), date: today, title: "Deep work block", time: "09:30", completed: false, importance: "high" },
-    { id: nextId(), date: today, title: "Lunch with Dana", time: "12:30", completed: false, importance: "medium" },
-    { id: nextId(), date: today, title: "Read 20 pages", time: null, completed: false, importance: "low" },
-    { id: nextId(), date: today, title: "Water the plants", time: null, completed: true, importance: "low" },
-    { id: nextId(), date: today, title: "Evening journal", time: "21:00", completed: false, importance: "medium" }
-  );
-  return tasks;
-}
-
-// Aggregate daily_activity table (per PRD): drives the heatmap in O(1), independent of the tasks list.
-function makeDailyActivity() {
-  const map = {};
-  let seed = 42;
-  const rand = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
-  for (let off = 364; off >= 0; off--) {
-    const date = offsetDate(-off);
-    const r = rand();
-    if (r < 0.18) continue;
-    const total = 1 + Math.floor(rand() * 5);
-    const bias = off < 60 ? 0.75 : 0.5;
-    const done = Array.from({ length: total }).filter(() => rand() < bias).length;
-    map[date] = { total, done };
-  }
-  return map;
-}
-
-function tierFromPct(pct, totalTasks) {
+function tierFromPct(pct: number, totalTasks: number) {
   if (totalTasks === 0) return -1;
   if (pct >= 100) return 4;
   if (pct >= 67) return 3;
@@ -201,7 +158,7 @@ function tierFromPct(pct, totalTasks) {
 const TIER_COLOR = [C.pink0, C.pink1, C.pink2, C.pink3, C.pink4];
 
 /* ----------------------------- Ink-fill checkbox ---------------------------- */
-function InkCheckbox({ checked, onToggle, size = 22 }) {
+function InkCheckbox({ checked, onToggle, size = 22 }: { checked: boolean; onToggle: () => void; size?: number }) {
   return (
     <button onClick={onToggle} aria-label={checked ? "Mark incomplete" : "Mark complete"} style={{
       width: size, height: size, borderRadius: 6, border: `2px solid ${C.ink}`,
@@ -220,11 +177,11 @@ function InkCheckbox({ checked, onToggle, size = 22 }) {
   );
 }
 
-function ImportanceDot({ id, size = 8 }) {
+function ImportanceDot({ id, size = 8 }: { id: Importance; size?: number }) {
   return <span style={{ width: size, height: size, borderRadius: "50%", background: importanceColor(id), flexShrink: 0, display: "inline-block" }} />;
 }
 
-function ImportancePicker({ value, onChange }) {
+function ImportancePicker({ value, onChange }: { value: Importance; onChange: (v: Importance) => void }) {
   return (
     <div style={{ display: "flex", gap: 6 }}>
       {IMPORTANCE.map((lvl) => (
@@ -242,7 +199,7 @@ function ImportancePicker({ value, onChange }) {
 }
 
 /* --------------------------------- Nav tabs --------------------------------- */
-function TabBar({ active, setActive }) {
+function TabBar({ active, setActive }: { active: string; setActive: (id: string) => void }) {
   const tabs = [ { id: "today", label: "Today" }, { id: "calendar", label: "Calendar" }, { id: "focus", label: "Focus" } ];
   return (
     <div style={{ display: "flex", gap: 4, padding: "4px", background: C.pink0, borderRadius: 12, marginBottom: 20 }}>
@@ -257,31 +214,45 @@ function TabBar({ active, setActive }) {
     </div>
   );
 }
-function SectionLabel({ text }) {
+function SectionLabel({ text }: { text: string }) {
   return (
     <div style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 21, color: C.navy, marginBottom: 8, borderBottom: `2px solid ${C.ink}`, display: "inline-block", paddingBottom: 2 }}>
       {text}
     </div>
   );
 }
-function EmptyNote({ text }) {
+function EmptyNote({ text }: { text: string }) {
   return <div style={{ fontFamily: HAND, fontSize: 14, color: C.inkSoft, padding: "6px 0" }}>{text}</div>;
 }
 
 /* ------------------------------- Yearly heatmap ------------------------------ */
-function YearHeatmap({ activity }) {
+// Reads the tasks table directly and aggregates client-side. If your task volume grows
+// large enough for this to matter, swap this for a dedicated `daily_activity` Dexie table
+// that's incremented on every write (see PRD §2B) instead of scanning here — this version
+// trades a bit of scale headroom for not needing a second write path right now.
+function YearHeatmap({ tasks }: { tasks: Task[] }) {
+  const activity = useMemo(() => {
+    const map: Record<string, { total: number; done: number }> = {};
+    for (const t of tasks) {
+      if (!map[t.date]) map[t.date] = { total: 0, done: 0 };
+      map[t.date].total += 1;
+      if (t.completed) map[t.date].done += 1;
+    }
+    return map;
+  }, [tasks]);
+
   const today = new Date();
   const cols = 27;
   const startSunday = new Date(today);
   startSunday.setDate(startSunday.getDate() - startSunday.getDay() - (cols - 1) * 7);
 
-  const weeks = [];
+  const weeks: Date[][] = [];
   for (let w = 0; w < cols; w++) {
-    const col = [];
+    const col: Date[] = [];
     for (let d = 0; d < 7; d++) { const day = new Date(startSunday); day.setDate(day.getDate() + w * 7 + d); col.push(day); }
     weeks.push(col);
   }
-  const monthLabels = {};
+  const monthLabels: Record<string, number> = {};
   weeks.forEach((col, wi) => {
     const first = col[0];
     const key = `${first.getFullYear()}-${first.getMonth()}`;
@@ -353,37 +324,44 @@ function YearHeatmap({ activity }) {
 }
 
 /* --------------------------------- Today view -------------------------------- */
-function TodayView({ tasks, setTasks, mood, setMood, activity }) {
+function TodayView({
+  tasks, addTask, toggleTask, mood, setMood,
+}: {
+  tasks: Task[];
+  addTask: (t: { date: string; title: string; time: string | null; importance: Importance }) => void;
+  toggleTask: (id: number) => void;
+  mood: number;
+  setMood: (n: number) => void;
+}) {
   const [input, setInput] = useState("");
   const [scheduleOn, setScheduleOn] = useState(false);
   const [manualTime, setManualTime] = useState("");
-  const [importance, setImportance] = useState("medium");
+  const [importance, setImportance] = useState<Importance>("medium");
   const today = fmtDate(new Date());
   const todays = tasks.filter((t) => t.date === today);
-  const scheduled = todays.filter((t) => t.time).sort((a, b) => a.time.localeCompare(b.time));
+  const scheduled = todays.filter((t) => t.time).sort((a, b) => (a.time as string).localeCompare(b.time as string));
   const unscheduled = todays.filter((t) => !t.time);
   const dateObj = new Date();
 
-  const addTask = () => {
+  const handleAdd = () => {
     if (!input.trim()) return;
     const parsed = parseQuickAdd(input);
     const time = scheduleOn ? (manualTime || parsed.time) : parsed.time;
-    setTasks((prev) => [...prev, { id: nextId(), date: today, title: parsed.title, time, completed: false, importance }]);
+    addTask({ date: today, title: parsed.title, time, importance });
     setInput(""); setManualTime("");
   };
-  const toggle = (id) => setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)));
 
-  const TaskRow = ({ t, showTime }) => {
+  const TaskRow = ({ t, showTime }: { t: Task; showTime?: boolean }) => {
     const Icon = getSmartIcon(t.title);
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 0", borderBottom: `1px solid ${C.lineSoft}` }}>
         {showTime
           ? <span style={{ fontFamily: HAND, fontSize: 13, color: C.navySoft, width: 50, flexShrink: 0 }}>{to12h(t.time)}</span>
-          : <InkCheckbox checked={t.completed} onToggle={() => toggle(t.id)} />}
+          : <InkCheckbox checked={t.completed} onToggle={() => toggleTask(t.id!)} />}
         <ImportanceDot id={t.importance} />
         {Icon && <Icon size={16} color={t.completed ? C.inkSoft : C.navySoft} style={{ flexShrink: 0 }} />}
         <span style={{ flex: 1, fontFamily: HAND, fontSize: 16, color: t.completed ? C.inkSoft : C.ink, textDecoration: t.completed ? "line-through" : "none" }}>{t.title}</span>
-        {showTime && <InkCheckbox checked={t.completed} onToggle={() => toggle(t.id)} />}
+        {showTime && <InkCheckbox checked={t.completed} onToggle={() => toggleTask(t.id!)} />}
       </div>
     );
   };
@@ -391,7 +369,7 @@ function TodayView({ tasks, setTasks, mood, setMood, activity }) {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}>
-        <div style={{ width: 52, height: 52, background: C.ink, color: C.paper, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: DISPLAY, fontWeight: 700, fontSize: 30 }}>
+        <div style={{ width: 52, height: 52, background: C.pink3, color: C.paper, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: DISPLAY, fontWeight: 700, fontSize: 30 }}>
           {dateObj.getDate()}
         </div>
         <div>
@@ -400,10 +378,9 @@ function TodayView({ tasks, setTasks, mood, setMood, activity }) {
         </div>
       </div>
 
-      {/* Quick add */}
       <div style={{ marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 8, marginBottom: scheduleOn ? 8 : 0 }}>
-          <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addTask()}
+          <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAdd()}
             placeholder='Try "Read chapter 3 at 5pm"'
             style={{ flex: 1, padding: "11px 14px", borderRadius: 10, border: `1.5px solid ${C.line}`, background: C.paper, fontFamily: HAND, fontSize: 16, color: C.ink, outline: "none" }} />
           <button onClick={() => setScheduleOn((s) => !s)} aria-label="Toggle schedule time" title="Schedule this task" style={{
@@ -413,7 +390,7 @@ function TodayView({ tasks, setTasks, mood, setMood, activity }) {
           }}>
             <Clock size={18} />
           </button>
-          <button onClick={addTask} aria-label="Add task" style={{ width: 42, height: 42, borderRadius: 10, border: "none", background: C.pink3, color: C.paper, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+          <button onClick={handleAdd} aria-label="Add task" style={{ width: 42, height: 42, borderRadius: 10, border: "none", background: C.pink3, color: C.paper, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
             <Plus size={20} />
           </button>
         </div>
@@ -425,7 +402,9 @@ function TodayView({ tasks, setTasks, mood, setMood, activity }) {
             <span style={{ color: C.inkSoft }}>this goes into your Schedule instead of the to-do list</span>
           </div>
         )}
+        <div style={{paddingTop: 4}}>
         <ImportancePicker value={importance} onChange={setImportance} />
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 26, marginTop: 20 }}>
@@ -453,17 +432,28 @@ function TodayView({ tasks, setTasks, mood, setMood, activity }) {
       </div>
 
       <div style={{ paddingTop: 18, borderTop: `1px dashed ${C.line}` }}>
-        <YearHeatmap activity={activity} />
+        <YearHeatmap tasks={tasks} />
       </div>
     </div>
   );
 }
 
 /* ------------------------------ Day dialog (event + doodle) ------------------ */
-function DayDialog({ date, dayTasks, onToggleTask, onAddEvent, doodles, onAddDoodle, onRemoveDoodle, onClose }) {
+function DayDialog({
+  date, dayTasks, onToggleTask, onAddEvent, doodles, onAddDoodle, onRemoveDoodle, onClose,
+}: {
+  date: string;
+  dayTasks: Task[];
+  onToggleTask: (id: number) => void;
+  onAddEvent: (evt: { title: string; time: string | null; importance: Importance }) => void;
+  doodles: { id: number; iconId: string; label: string }[];
+  onAddDoodle: (iconId: string, label: string) => void;
+  onRemoveDoodle: (id: number) => void;
+  onClose: () => void;
+}) {
   const [title, setTitle] = useState("");
   const [time, setTime] = useState("");
-  const [importance, setImportance] = useState("medium");
+  const [importance, setImportance] = useState<Importance>("medium");
 
   const submitEvent = () => {
     if (!title.trim()) return;
@@ -484,7 +474,7 @@ function DayDialog({ date, dayTasks, onToggleTask, onAddEvent, doodles, onAddDoo
             <div style={{ fontFamily: HAND, fontSize: 14, color: C.inkSoft, marginBottom: 6 }}>Events this day</div>
             {dayTasks.map((t) => (
               <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${C.lineSoft}` }}>
-                <InkCheckbox checked={t.completed} onToggle={() => onToggleTask(t.id)} size={18} />
+                <InkCheckbox checked={t.completed} onToggle={() => onToggleTask(t.id!)} size={18} />
                 <ImportanceDot id={t.importance} />
                 {t.time && <span style={{ fontFamily: HAND, fontSize: 12, color: C.navySoft, width: 44 }}>{to12h(t.time)}</span>}
                 <span style={{ flex: 1, fontFamily: HAND, fontSize: 14, color: t.completed ? C.inkSoft : C.ink, textDecoration: t.completed ? "line-through" : "none" }}>{t.title}</span>
@@ -527,7 +517,7 @@ function DayDialog({ date, dayTasks, onToggleTask, onAddEvent, doodles, onAddDoo
           {DOODLES.map((d) => {
             const Icon = d.Icon;
             return (
-              <button key={d.id} onClick={() => onAddDoodle(d)} title={d.label} style={{
+              <button key={d.id} onClick={() => onAddDoodle(d.id, d.label)} title={d.label} style={{
                 display: "flex", alignItems: "center", justifyContent: "center", aspectRatio: "1", borderRadius: 8,
                 border: `1.5px solid ${C.lineSoft}`, background: C.page, cursor: "pointer", color: C.ink,
               }}><Icon size={17} /></button>
@@ -540,9 +530,18 @@ function DayDialog({ date, dayTasks, onToggleTask, onAddEvent, doodles, onAddDoo
 }
 
 /* --------------------------------- Calendar view ------------------------------ */
-function CalendarView({ tasks, setTasks, doodleMap, setDoodleMap }) {
+function CalendarView({
+  tasks, addTask, toggleTask, doodleMap, addDoodle, removeDoodle,
+}: {
+  tasks: Task[];
+  addTask: (t: { date: string; title: string; time: string | null; importance: Importance }) => void;
+  toggleTask: (id: number) => void;
+  doodleMap: Record<string, { id: number; iconId: string; label: string }[]>;
+  addDoodle: (date: string, iconId: string, label: string) => void;
+  removeDoodle: (id: number) => void;
+}) {
   const [monthOffset, setMonthOffset] = useState(0);
-  const [openDate, setOpenDate] = useState(null);
+  const [openDate, setOpenDate] = useState<string | null>(null);
   const [boxShade, setBoxShade] = useState("paper");
   const base = new Date(); base.setDate(1); base.setMonth(base.getMonth() + monthOffset);
   const year = base.getFullYear(), month = base.getMonth();
@@ -550,27 +549,16 @@ function CalendarView({ tasks, setTasks, doodleMap, setDoodleMap }) {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   const byDate = useMemo(() => {
-    const map = {};
+    const map: Record<string, Task[]> = {};
     tasks.forEach((t) => { (map[t.date] ||= []).push(t); });
     return map;
   }, [tasks]);
 
-  const cells = [];
+  const cells: (number | null)[] = [];
   for (let i = 0; i < firstWeekday; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 
-  const addDoodle = (dateStr, meta) => {
-    setDoodleMap((prev) => { const list = prev[dateStr] || []; return { ...prev, [dateStr]: [...list, { id: nextId(), iconId: meta.id, label: meta.label }] }; });
-  };
-  const removeDoodle = (dateStr, id) => {
-    setDoodleMap((prev) => ({ ...prev, [dateStr]: (prev[dateStr] || []).filter((d) => d.id !== id) }));
-  };
-  const toggleTask = (id) => setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)));
-  const addEvent = (dateStr, { title, time, importance }) => {
-    setTasks((prev) => [...prev, { id: nextId(), date: dateStr, title, time, completed: false, importance }]);
-  };
-
-  const boxColor = BOX_SHADES.find((s) => s.id === boxShade).color;
+  const boxColor = BOX_SHADES.find((s) => s.id === boxShade)!.color;
 
   return (
     <div style={{ position: "relative" }}>
@@ -639,10 +627,10 @@ function CalendarView({ tasks, setTasks, doodleMap, setDoodleMap }) {
           date={openDate}
           dayTasks={byDate[openDate] || []}
           onToggleTask={toggleTask}
-          onAddEvent={(evt) => addEvent(openDate, evt)}
+          onAddEvent={(evt) => addTask({ date: openDate, ...evt })}
           doodles={doodleMap[openDate] || []}
-          onAddDoodle={(meta) => addDoodle(openDate, meta)}
-          onRemoveDoodle={(id) => removeDoodle(openDate, id)}
+          onAddDoodle={(iconId, label) => addDoodle(openDate, iconId, label)}
+          onRemoveDoodle={removeDoodle}
           onClose={() => setOpenDate(null)}
         />
       )}
@@ -651,26 +639,32 @@ function CalendarView({ tasks, setTasks, doodleMap, setDoodleMap }) {
 }
 
 /* --------------------------------- Focus view -------------------------------- */
-const AMBIENTS = [
+const AMBIENTS: { id: string; label: string; icon: LucideIcon; kind: "filtered" | "brown" | null }[] = [
   { id: "rain", label: "Rain", icon: CloudRain, kind: "filtered" },
   { id: "brown", label: "Brown noise", icon: Waves, kind: "brown" },
   { id: "lofi", label: "Lo-fi", icon: Music2, kind: null },
 ];
 function useNoise() {
-  const ctxRef = useRef(null);
-  const nodesRef = useRef(null);
-  const [playingId, setPlayingId] = useState(null);
+  const ctxRef = useRef<AudioContext | null>(null);
+  const nodesRef = useRef<{ src: AudioBufferSourceNode; gain: GainNode } | null>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+
   const stop = useCallback(() => {
     if (nodesRef.current) { try { nodesRef.current.src.stop(); } catch (e) {} nodesRef.current = null; }
     setPlayingId(null);
   }, []);
-  const play = useCallback((ambient) => {
+
+  const play = useCallback((ambient: { id: string; kind: "filtered" | "brown" | null }) => {
     if (!ambient.kind) return;
-    if (!ctxRef.current) { const AC = window.AudioContext || window.webkitAudioContext; ctxRef.current = new AC(); }
+    if (!ctxRef.current) {
+      const AC = window.AudioContext || (window as any).webkitAudioContext;
+      ctxRef.current = new AC();
+    }
     const ctx = ctxRef.current;
     if (ctx.state === "suspended") ctx.resume();
     if (nodesRef.current) { try { nodesRef.current.src.stop(); } catch (e) {} nodesRef.current = null; }
     if (playingId === ambient.id) { setPlayingId(null); return; }
+
     const bufferSize = 2 * ctx.sampleRate;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -690,28 +684,40 @@ function useNoise() {
     nodesRef.current = { src, gain };
     setPlayingId(ambient.id);
   }, [playingId]);
+
   useEffect(() => stop, [stop]);
   return { playingId, play, stop };
 }
 
-function FocusView({ tasks }) {
+function FocusView({ tasks, toggleTask }: { tasks: Task[]; toggleTask: (id: number) => void }) {
   const today = fmtDate(new Date());
-  const openTasks = tasks.filter((t) => t.date === today && !t.completed);
-  const [focusTaskId, setFocusTaskId] = useState(openTasks[0]?.id ?? null);
-  const [mode, setMode] = useState("work");
+  // Everything open today — scheduled AND to-do — so nothing gets left out of Focus mode.
+  const openToday = tasks.filter((t) => t.date === today && !t.completed);
+  const openScheduled = openToday.filter((t) => t.time).sort((a, b) => (a.time as string).localeCompare(b.time as string));
+  const openTodo = openToday.filter((t) => !t.time);
+
+  const [focusTaskId, setFocusTaskId] = useState<number | null>(openToday[0]?.id ?? null);
+  useEffect(() => {
+    // If the currently focused task got completed or removed, fall back to the next open one.
+    if (focusTaskId !== null && !openToday.some((t) => t.id === focusTaskId)) {
+      setFocusTaskId(openToday[0]?.id ?? null);
+    }
+  }, [openToday, focusTaskId]);
+
+  const [mode, setMode] = useState<"work" | "break">("work");
   const [workMin, setWorkMin] = useState(25);
   const [breakMin, setBreakMin] = useState(5);
   const durationSec = (mode === "work" ? workMin : breakMin) * 60;
   const [remaining, setRemaining] = useState(durationSec);
   const [running, setRunning] = useState(false);
-  const endTimeRef = useRef(null);
+  const endTimeRef = useRef<number | null>(null);
 
   useEffect(() => { if (!running) setRemaining(durationSec); }, [durationSec, running]);
   useEffect(() => {
     if (!running) return;
     endTimeRef.current = Date.now() + remaining * 1000;
     const tick = () => {
-      const left = Math.max(0, Math.round((endTimeRef.current - Date.now()) / 1000));
+      const left = Math.max(0, Math.round((endTimeRef.current! - Date.now()) / 1000));
       setRemaining(left);
       if (left <= 0) { setRunning(false); setMode((m) => (m === "work" ? "break" : "work")); }
     };
@@ -730,10 +736,28 @@ function FocusView({ tasks }) {
   const { playingId, play } = useNoise();
   const radius = 90, circumference = 2 * Math.PI * radius;
 
+  const FocusTaskButton = ({ t }: { t: Task }) => {
+    const Icon = getSmartIcon(t.title);
+    return (
+      <button onClick={() => setFocusTaskId(t.id!)} style={{
+        textAlign: "left", padding: "9px 12px", borderRadius: 8, cursor: "pointer",
+        border: `1.5px solid ${focusTaskId === t.id ? C.pink3 : C.lineSoft}`,
+        background: focusTaskId === t.id ? C.pink1 : C.paper, fontFamily: HAND, fontSize: 15, color: C.ink,
+        display: "flex", alignItems: "center", gap: 8, width: "100%",
+      }}>
+        <InkCheckbox checked={t.completed} onToggle={(e?: any) => { e?.stopPropagation?.(); toggleTask(t.id!); }} size={18} />
+        <ImportanceDot id={t.importance} />
+        {t.time && <span style={{ fontSize: 12, color: C.navySoft, flexShrink: 0 }}>{to12h(t.time)}</span>}
+        {Icon && <Icon size={15} color={C.navySoft} style={{ flexShrink: 0 }} />}
+        <span style={{ flex: 1 }}>{t.title}</span>
+      </button>
+    );
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
       <div style={{ display: "flex", gap: 6, marginBottom: 22 }}>
-        {["work", "break"].map((m) => (
+        {(["work", "break"] as const).map((m) => (
           <button key={m} onClick={() => { setMode(m); setRunning(false); }} style={{
             padding: "6px 16px", borderRadius: 999, border: `1.5px solid ${C.ink}`, cursor: "pointer",
             background: mode === m ? C.ink : "transparent", color: mode === m ? C.paper : C.ink, fontFamily: HAND, fontSize: 15,
@@ -766,20 +790,29 @@ function FocusView({ tasks }) {
             style={{ width: 44, padding: "4px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontFamily: HAND }} /> min
         </label>
       </div>
+
+      {/* Focusing on — now pulls from BOTH the schedule and the to-do list */}
       <div style={{ width: "100%", maxWidth: 360, marginBottom: 22 }}>
         <SectionLabel text="Focusing on" />
-        {openTasks.length === 0 && <EmptyNote text="No open tasks — enjoy the quiet." />}
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {openTasks.map((t) => (
-            <button key={t.id} onClick={() => setFocusTaskId(t.id)} style={{
-              textAlign: "left", padding: "9px 12px", borderRadius: 8, cursor: "pointer",
-              border: `1.5px solid ${focusTaskId === t.id ? C.pink3 : C.lineSoft}`,
-              background: focusTaskId === t.id ? C.pink1 : C.paper, fontFamily: HAND, fontSize: 15, color: C.ink,
-              display: "flex", alignItems: "center", gap: 8,
-            }}><ImportanceDot id={t.importance} /> {t.title}</button>
-          ))}
-        </div>
+        {openToday.length === 0 && <EmptyNote text="No open tasks — enjoy the quiet." />}
+        {openScheduled.length > 0 && (
+          <div style={{ marginBottom: openTodo.length > 0 ? 12 : 0 }}>
+            <div style={{ fontFamily: HAND, fontSize: 13, color: C.inkSoft, marginBottom: 6 }}>Scheduled</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {openScheduled.map((t) => <FocusTaskButton key={t.id} t={t} />)}
+            </div>
+          </div>
+        )}
+        {openTodo.length > 0 && (
+          <div>
+            <div style={{ fontFamily: HAND, fontSize: 13, color: C.inkSoft, marginBottom: 6 }}>To-do</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {openTodo.map((t) => <FocusTaskButton key={t.id} t={t} />)}
+            </div>
+          </div>
+        )}
       </div>
+
       <div style={{ width: "100%", maxWidth: 360 }}>
         <SectionLabel text="Ambient sound" />
         <div style={{ display: "flex", gap: 8 }}>
@@ -802,12 +835,11 @@ function FocusView({ tasks }) {
 }
 
 /* ---------------------------------- App root --------------------------------- */
-export default function AnalogTodoApp() {
-  const [tasks, setTasks] = useState(makeSeed);
-  const [activity] = useState(makeDailyActivity);
-  const [doodleMap, setDoodleMap] = useState({});
+export default function DoMEApp() {
+  const { tasks, addTask, toggleTask } = useTasks();
+  const { doodleMap, addDoodle, removeDoodle } = useDoodles();
   const [active, setActive] = useState("today");
-  const [mood, setMood] = useState(3);
+  const [mood, setMood] = useState(3); // session-only for now — see README for how to persist it
 
   return (
     <div style={{
@@ -816,15 +848,19 @@ export default function AnalogTodoApp() {
       backgroundSize: "22px 22px", position: "relative",
     }}>
       <style>{`
-        ${FONTS}
         @keyframes inkfill { from { stroke-dashoffset: 22; } to { stroke-dashoffset: 0; } }
         input:focus, textarea:focus { border-color: ${C.pink3} !important; }
       `}</style>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         <TabBar active={active} setActive={setActive} />
-        {active === "today" && <TodayView tasks={tasks} setTasks={setTasks} mood={mood} setMood={setMood} activity={activity} />}
-        {active === "calendar" && <CalendarView tasks={tasks} setTasks={setTasks} doodleMap={doodleMap} setDoodleMap={setDoodleMap} />}
-        {active === "focus" && <FocusView tasks={tasks} />}
+        {active === "today" && <TodayView tasks={tasks} addTask={addTask} toggleTask={toggleTask} mood={mood} setMood={setMood} />}
+        {active === "calendar" && (
+          <CalendarView
+            tasks={tasks} addTask={addTask} toggleTask={toggleTask}
+            doodleMap={doodleMap} addDoodle={addDoodle} removeDoodle={removeDoodle}
+          />
+        )}
+        {active === "focus" && <FocusView tasks={tasks} toggleTask={toggleTask} />}
       </div>
     </div>
   );
