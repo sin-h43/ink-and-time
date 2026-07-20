@@ -1,0 +1,831 @@
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import {
+  Plus, Star, Play, Pause, RotateCcw, CloudRain, Waves, Music2, X, Clock,
+  ChevronLeft, ChevronRight, Sparkles, AlarmClock, Coffee, BookOpen,
+  Dumbbell, Milk, Laptop, UtensilsCrossed, Film, Camera, Cat, Apple,
+  ShoppingBag, Moon, Mail, Phone, Users, Droplet, Footprints,
+  NotebookPen, Music, Gift, Heart, Bike, ShowerHead,
+} from "lucide-react";
+
+/* ---------------------------------- Tokens --------------------------------- */
+const C = {
+  paper: "#FFFDF8",
+  page: "#FEFCF6",
+  ink: "#2E2B24",
+  inkSoft: "#6B6558",
+  navy: "#2B3A5C",
+  navySoft: "#54628A",
+  line: "#DDD5C2",
+  lineSoft: "#EBE4D4",
+  gridLine: "rgba(190, 175, 140, 0.16)",
+  pink0: "#EFE9DC",
+  pink1: "#F3D9DD",
+  pink2: "#E8AEBB",
+  pink3: "#D97690",
+  pink4: "#B54F70",
+  gold: "#C69A55",
+};
+
+const FONTS = "@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Patrick+Hand&display=swap');";
+const HAND = "'Patrick Hand', cursive";
+const DISPLAY = "'Caveat', cursive";
+
+/* -------------------------------- Importance -------------------------------- */
+// Three peony shades used everywhere importance shows up: dot on a task, chip in the quick-add row, etc.
+const IMPORTANCE = [
+  { id: "low", label: "Low", color: C.pink2 },
+  { id: "medium", label: "Medium", color: C.pink3 },
+  { id: "high", label: "High", color: C.pink4 },
+];
+const importanceColor = (id) => (IMPORTANCE.find((i) => i.id === id) || IMPORTANCE[1]).color;
+
+// Peony shades a person can pick to re-tint the calendar day boxes.
+const BOX_SHADES = [
+  { id: "paper", label: "Paper", color: C.page },
+  { id: "blush", label: "Blush", color: C.pink0 },
+  { id: "rose", label: "Rose", color: C.pink1 },
+  { id: "deep", label: "Deep", color: C.pink2 },
+];
+
+/* --------------------------------- Helpers --------------------------------- */
+const pad = (n) => (n < 10 ? "0" + n : "" + n);
+const fmtDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+function offsetDate(days, base = new Date()) {
+  const d = new Date(base);
+  d.setDate(d.getDate() + days);
+  return fmtDate(d);
+}
+function to12h(hhmm) {
+  if (!hhmm) return "";
+  const [h, m] = hhmm.split(":").map(Number);
+  const ap = h >= 12 ? "pm" : "am";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}${m ? ":" + pad(m) : ""}${ap}`;
+}
+let uidCounter = 1000;
+const nextId = () => uidCounter++;
+
+function parseQuickAdd(raw) {
+  let text = raw.trim();
+  let time = null;
+  const timeRegex = /\b(?:at\s+)?(\d{1,2})(:\d{2})?\s*(am|pm)\b/i;
+  const m = text.match(timeRegex);
+  if (m) {
+    let hour = parseInt(m[1], 10);
+    const min = m[2] ? parseInt(m[2].slice(1), 10) : 0;
+    const ap = m[3].toLowerCase();
+    if (ap === "pm" && hour < 12) hour += 12;
+    if (ap === "am" && hour === 12) hour = 0;
+    time = `${pad(hour)}:${pad(min)}`;
+    text = (text.slice(0, m.index) + text.slice(m.index + m[0].length)).trim();
+  }
+  text = text.replace(/\btomorrow\b/i, "").replace(/\s+/g, " ").trim();
+  return { title: text || raw.trim(), time };
+}
+
+/* --------------------------- Smart icon recognition -------------------------- */
+const ICON_RULES = [
+  { test: /gym|workout|exercise|dumbbell/i, Icon: Dumbbell },
+  { test: /walk|run|jog|hike/i, Icon: Footprints },
+  { test: /bike|cycle/i, Icon: Bike },
+  { test: /coffee|espresso|latte/i, Icon: Coffee },
+  { test: /milk|dairy/i, Icon: Milk },
+  { test: /read|book|chapter|novel/i, Icon: BookOpen },
+  { test: /journal|diary|write|writing/i, Icon: NotebookPen },
+  { test: /water|hydrate|drink/i, Icon: Droplet },
+  { test: /sleep|rest|nap|bed/i, Icon: Moon },
+  { test: /work|project|deep work|deadline/i, Icon: Laptop },
+  { test: /email|mail|reply/i, Icon: Mail },
+  { test: /call|phone/i, Icon: Phone },
+  { test: /lunch|dinner|breakfast|food|eat|cook/i, Icon: UtensilsCrossed },
+  { test: /shower|bath/i, Icon: ShowerHead },
+  { test: /shop|groceries|buy|market/i, Icon: ShoppingBag },
+  { test: /movie|film|watch/i, Icon: Film },
+  { test: /photo|camera|shoot/i, Icon: Camera },
+  { test: /cat|dog|pet/i, Icon: Cat },
+  { test: /fruit|apple|snack/i, Icon: Apple },
+  { test: /music|song|playlist/i, Icon: Music },
+  { test: /family|friend|meet up|meeting|team/i, Icon: Users },
+  { test: /gift|birthday|present/i, Icon: Gift },
+  { test: /love|date night|heart/i, Icon: Heart },
+  { test: /alarm|wake/i, Icon: AlarmClock },
+];
+function getSmartIcon(title) {
+  for (const rule of ICON_RULES) if (rule.test.test(title)) return rule.Icon;
+  return null;
+}
+
+/* --------------------------------- Doodle set -------------------------------- */
+const DOODLES = [
+  { id: "alarm", Icon: AlarmClock, label: "wake" },
+  { id: "coffee", Icon: Coffee, label: "coffee" },
+  { id: "book", Icon: BookOpen, label: "read" },
+  { id: "gym", Icon: Dumbbell, label: "gym" },
+  { id: "milk", Icon: Milk, label: "milk" },
+  { id: "work", Icon: Laptop, label: "work" },
+  { id: "food", Icon: UtensilsCrossed, label: "food" },
+  { id: "movie", Icon: Film, label: "movie" },
+  { id: "photo", Icon: Camera, label: "photo" },
+  { id: "pet", Icon: Cat, label: "pet" },
+  { id: "fruit", Icon: Apple, label: "fruit" },
+  { id: "shop", Icon: ShoppingBag, label: "shop" },
+  { id: "sleep", Icon: Moon, label: "sleep" },
+  { id: "mail", Icon: Mail, label: "mail" },
+  { id: "call", Icon: Phone, label: "call" },
+  { id: "people", Icon: Users, label: "people" },
+  { id: "water", Icon: Droplet, label: "water" },
+  { id: "walk", Icon: Footprints, label: "walk" },
+  { id: "journal", Icon: NotebookPen, label: "journal" },
+  { id: "music", Icon: Music, label: "music" },
+  { id: "gift", Icon: Gift, label: "gift" },
+  { id: "heart", Icon: Heart, label: "love" },
+  { id: "bike", Icon: Bike, label: "bike" },
+  { id: "shower", Icon: ShowerHead, label: "shower" },
+];
+
+/* ------------------------------- Seed data ---------------------------------- */
+function makeSeed() {
+  uidCounter = 1000;
+  const tasks = [];
+  const titles = ["Morning walk", "Read chapter", "Journal", "Gym session", "Water plants", "Reply to emails", "Tidy desk", "Stretch"];
+  const importances = ["low", "medium", "high"];
+  [-6, -5, -4, -3, -2, -1].forEach((off, idx) => {
+    const date = offsetDate(off);
+    const count = idx === 2 ? 0 : 2 + (idx % 3);
+    for (let i = 0; i < count; i++) {
+      const done = Math.random() > (idx % 2 === 0 ? 0.25 : 0.55);
+      tasks.push({ id: nextId(), date, title: titles[(idx + i) % titles.length], time: i === 0 ? "08:00" : null, completed: done, importance: importances[(idx + i) % 3] });
+    }
+  });
+  const today = fmtDate(new Date());
+  tasks.push(
+    { id: nextId(), date: today, title: "Morning walk", time: "07:00", completed: true, importance: "low" },
+    { id: nextId(), date: today, title: "Deep work block", time: "09:30", completed: false, importance: "high" },
+    { id: nextId(), date: today, title: "Lunch with Dana", time: "12:30", completed: false, importance: "medium" },
+    { id: nextId(), date: today, title: "Read 20 pages", time: null, completed: false, importance: "low" },
+    { id: nextId(), date: today, title: "Water the plants", time: null, completed: true, importance: "low" },
+    { id: nextId(), date: today, title: "Evening journal", time: "21:00", completed: false, importance: "medium" }
+  );
+  return tasks;
+}
+
+// Aggregate daily_activity table (per PRD): drives the heatmap in O(1), independent of the tasks list.
+function makeDailyActivity() {
+  const map = {};
+  let seed = 42;
+  const rand = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+  for (let off = 364; off >= 0; off--) {
+    const date = offsetDate(-off);
+    const r = rand();
+    if (r < 0.18) continue;
+    const total = 1 + Math.floor(rand() * 5);
+    const bias = off < 60 ? 0.75 : 0.5;
+    const done = Array.from({ length: total }).filter(() => rand() < bias).length;
+    map[date] = { total, done };
+  }
+  return map;
+}
+
+function tierFromPct(pct, totalTasks) {
+  if (totalTasks === 0) return -1;
+  if (pct >= 100) return 4;
+  if (pct >= 67) return 3;
+  if (pct >= 34) return 2;
+  if (pct > 0) return 1;
+  return 0;
+}
+const TIER_COLOR = [C.pink0, C.pink1, C.pink2, C.pink3, C.pink4];
+
+/* ----------------------------- Ink-fill checkbox ---------------------------- */
+function InkCheckbox({ checked, onToggle, size = 22 }) {
+  return (
+    <button onClick={onToggle} aria-label={checked ? "Mark incomplete" : "Mark complete"} style={{
+      width: size, height: size, borderRadius: 6, border: `2px solid ${C.ink}`,
+      background: checked ? C.pink3 : "transparent", display: "flex",
+      alignItems: "center", justifyContent: "center", cursor: "pointer",
+      flexShrink: 0, transition: "background 0.25s ease, transform 0.15s ease",
+      transform: checked ? "scale(1.04)" : "scale(1)", padding: 0,
+    }}>
+      {checked && (
+        <svg width={size * 0.6} height={size * 0.5} viewBox="0 0 16 14" fill="none">
+          <path d="M1 7L6 12L15 1" stroke={C.paper} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            style={{ strokeDasharray: 22, animation: "inkfill 0.35s ease forwards" }} />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+function ImportanceDot({ id, size = 8 }) {
+  return <span style={{ width: size, height: size, borderRadius: "50%", background: importanceColor(id), flexShrink: 0, display: "inline-block" }} />;
+}
+
+function ImportancePicker({ value, onChange }) {
+  return (
+    <div style={{ display: "flex", gap: 6 }}>
+      {IMPORTANCE.map((lvl) => (
+        <button key={lvl.id} onClick={() => onChange(lvl.id)} type="button" style={{
+          display: "flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 999,
+          border: `1.5px solid ${value === lvl.id ? lvl.color : C.lineSoft}`,
+          background: value === lvl.id ? lvl.color + "22" : C.paper, cursor: "pointer",
+          fontFamily: HAND, fontSize: 13, color: C.ink,
+        }}>
+          <ImportanceDot id={lvl.id} /> {lvl.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* --------------------------------- Nav tabs --------------------------------- */
+function TabBar({ active, setActive }) {
+  const tabs = [ { id: "today", label: "Today" }, { id: "calendar", label: "Calendar" }, { id: "focus", label: "Focus" } ];
+  return (
+    <div style={{ display: "flex", gap: 4, padding: "4px", background: C.pink0, borderRadius: 12, marginBottom: 20 }}>
+      {tabs.map((t) => (
+        <button key={t.id} onClick={() => setActive(t.id)} style={{
+          flex: 1, padding: "10px 12px", borderRadius: 9, border: "none", cursor: "pointer",
+          background: active === t.id ? C.paper : "transparent", color: active === t.id ? C.ink : C.inkSoft,
+          fontFamily: HAND, fontSize: 16, boxShadow: active === t.id ? `0 1px 3px rgba(46,43,36,0.15)` : "none",
+          transition: "all 0.2s ease",
+        }}>{t.label}</button>
+      ))}
+    </div>
+  );
+}
+function SectionLabel({ text }) {
+  return (
+    <div style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 21, color: C.navy, marginBottom: 8, borderBottom: `2px solid ${C.ink}`, display: "inline-block", paddingBottom: 2 }}>
+      {text}
+    </div>
+  );
+}
+function EmptyNote({ text }) {
+  return <div style={{ fontFamily: HAND, fontSize: 14, color: C.inkSoft, padding: "6px 0" }}>{text}</div>;
+}
+
+/* ------------------------------- Yearly heatmap ------------------------------ */
+function YearHeatmap({ activity }) {
+  const today = new Date();
+  const cols = 27;
+  const startSunday = new Date(today);
+  startSunday.setDate(startSunday.getDate() - startSunday.getDay() - (cols - 1) * 7);
+
+  const weeks = [];
+  for (let w = 0; w < cols; w++) {
+    const col = [];
+    for (let d = 0; d < 7; d++) { const day = new Date(startSunday); day.setDate(day.getDate() + w * 7 + d); col.push(day); }
+    weeks.push(col);
+  }
+  const monthLabels = {};
+  weeks.forEach((col, wi) => {
+    const first = col[0];
+    const key = `${first.getFullYear()}-${first.getMonth()}`;
+    if (monthLabels[key] === undefined && first.getDate() <= 7) monthLabels[key] = wi;
+  });
+
+  let streak = 0;
+  for (let off = 0; off < 365; off++) {
+    const date = offsetDate(-off);
+    if (date > fmtDate(today)) continue;
+    const info = activity[date];
+    const total = info ? info.total : 0;
+    const pct = total ? (info.done / total) * 100 : 0;
+    const tier = tierFromPct(pct, total);
+    if (tier === -1) continue;
+    if (tier === 0) break;
+    streak++;
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <SectionLabel text="Streak" />
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: C.pink1, color: C.pink4, padding: "3px 10px", borderRadius: 999, fontFamily: HAND, fontSize: 14 }}>
+          <Sparkles size={13} /> {streak} day streak
+        </div>
+      </div>
+      <div style={{ overflowX: "auto", paddingBottom: 4 }}>
+        <div style={{ display: "inline-flex", gap: 3 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 3, marginRight: 2, paddingTop: 16 }}>
+            {DAY_LETTERS.map((l, i) => <div key={i} style={{ width: 10, height: 10, fontFamily: HAND, fontSize: 9, color: i % 2 ? C.inkSoft : "transparent", lineHeight: "10px" }}>{l}</div>)}
+          </div>
+          <div>
+            <div style={{ display: "flex", gap: 3, marginBottom: 2, height: 14 }}>
+              {weeks.map((col, wi) => (
+                <div key={wi} style={{ width: 10, fontFamily: HAND, fontSize: 10, color: C.inkSoft, whiteSpace: "nowrap" }}>
+                  {Object.entries(monthLabels).find(([, v]) => v === wi) ? MONTH_NAMES[col[0].getMonth()].slice(0, 3) : ""}
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 3 }}>
+              {weeks.map((col, wi) => (
+                <div key={wi} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  {col.map((day, di) => {
+                    const dateStr = fmtDate(day);
+                    const isFuture = dateStr > fmtDate(today);
+                    const info = activity[dateStr];
+                    const total = info ? info.total : 0;
+                    const pct = total ? (info.done / total) * 100 : 0;
+                    const tier = tierFromPct(pct, total);
+                    return (
+                      <div key={di} title={isFuture ? "" : total === 0 ? `${dateStr}: rest day` : `${dateStr}: ${info.done}/${info.total} done`}
+                        style={{ width: 10, height: 10, borderRadius: 2.5, background: isFuture ? "transparent" : tier === -1 ? C.lineSoft : TIER_COLOR[tier], border: isFuture ? `1px dashed ${C.lineSoft}` : "none" }} />
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 5, alignItems: "center", marginTop: 8, fontFamily: HAND, fontSize: 13, color: C.inkSoft }}>
+        <span>Less</span>
+        {TIER_COLOR.map((c, i) => <div key={i} style={{ width: 11, height: 11, borderRadius: 3, background: c }} />)}
+        <span>More</span>
+      </div>
+    </div>
+  );
+}
+
+/* --------------------------------- Today view -------------------------------- */
+function TodayView({ tasks, setTasks, mood, setMood, activity }) {
+  const [input, setInput] = useState("");
+  const [scheduleOn, setScheduleOn] = useState(false);
+  const [manualTime, setManualTime] = useState("");
+  const [importance, setImportance] = useState("medium");
+  const today = fmtDate(new Date());
+  const todays = tasks.filter((t) => t.date === today);
+  const scheduled = todays.filter((t) => t.time).sort((a, b) => a.time.localeCompare(b.time));
+  const unscheduled = todays.filter((t) => !t.time);
+  const dateObj = new Date();
+
+  const addTask = () => {
+    if (!input.trim()) return;
+    const parsed = parseQuickAdd(input);
+    const time = scheduleOn ? (manualTime || parsed.time) : parsed.time;
+    setTasks((prev) => [...prev, { id: nextId(), date: today, title: parsed.title, time, completed: false, importance }]);
+    setInput(""); setManualTime("");
+  };
+  const toggle = (id) => setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)));
+
+  const TaskRow = ({ t, showTime }) => {
+    const Icon = getSmartIcon(t.title);
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 0", borderBottom: `1px solid ${C.lineSoft}` }}>
+        {showTime
+          ? <span style={{ fontFamily: HAND, fontSize: 13, color: C.navySoft, width: 50, flexShrink: 0 }}>{to12h(t.time)}</span>
+          : <InkCheckbox checked={t.completed} onToggle={() => toggle(t.id)} />}
+        <ImportanceDot id={t.importance} />
+        {Icon && <Icon size={16} color={t.completed ? C.inkSoft : C.navySoft} style={{ flexShrink: 0 }} />}
+        <span style={{ flex: 1, fontFamily: HAND, fontSize: 16, color: t.completed ? C.inkSoft : C.ink, textDecoration: t.completed ? "line-through" : "none" }}>{t.title}</span>
+        {showTime && <InkCheckbox checked={t.completed} onToggle={() => toggle(t.id)} />}
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}>
+        <div style={{ width: 52, height: 52, background: C.ink, color: C.paper, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: DISPLAY, fontWeight: 700, fontSize: 30 }}>
+          {dateObj.getDate()}
+        </div>
+        <div>
+          <div style={{ fontFamily: DISPLAY, fontSize: 30, color: C.navy, fontWeight: 700, lineHeight: 1 }}>{dateObj.toLocaleDateString("en-US", { weekday: "long" })}</div>
+          <div style={{ fontFamily: HAND, fontSize: 14, color: C.inkSoft }}>{MONTH_NAMES[dateObj.getMonth()]} {dateObj.getFullYear()}</div>
+        </div>
+      </div>
+
+      {/* Quick add */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: scheduleOn ? 8 : 0 }}>
+          <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addTask()}
+            placeholder='Try "Read chapter 3 at 5pm"'
+            style={{ flex: 1, padding: "11px 14px", borderRadius: 10, border: `1.5px solid ${C.line}`, background: C.paper, fontFamily: HAND, fontSize: 16, color: C.ink, outline: "none" }} />
+          <button onClick={() => setScheduleOn((s) => !s)} aria-label="Toggle schedule time" title="Schedule this task" style={{
+            width: 42, height: 42, borderRadius: 10, border: `1.5px solid ${scheduleOn ? C.navy : C.line}`,
+            background: scheduleOn ? C.navy : C.paper, color: scheduleOn ? C.paper : C.inkSoft,
+            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0,
+          }}>
+            <Clock size={18} />
+          </button>
+          <button onClick={addTask} aria-label="Add task" style={{ width: 42, height: 42, borderRadius: 10, border: "none", background: C.pink3, color: C.paper, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+            <Plus size={20} />
+          </button>
+        </div>
+        {scheduleOn && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, fontFamily: HAND, fontSize: 14, color: C.inkSoft }}>
+            <span>at</span>
+            <input type="time" value={manualTime} onChange={(e) => setManualTime(e.target.value)}
+              style={{ padding: "6px 8px", borderRadius: 8, border: `1.5px solid ${C.line}`, fontFamily: HAND, fontSize: 14, background: C.paper, color: C.ink }} />
+            <span style={{ color: C.inkSoft }}>this goes into your Schedule instead of the to-do list</span>
+          </div>
+        )}
+        <ImportancePicker value={importance} onChange={setImportance} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 26, marginTop: 20 }}>
+        <div>
+          <SectionLabel text="Schedule" />
+          {scheduled.length === 0 && <EmptyNote text="Nothing on the clock yet — tap the clock icon above to add a time." />}
+          {scheduled.map((t) => <TaskRow key={t.id} t={t} showTime />)}
+        </div>
+        <div>
+          <SectionLabel text="To-do list" />
+          {unscheduled.length === 0 && <EmptyNote text="All clear here." />}
+          {unscheduled.map((t) => <TaskRow key={t.id} t={t} />)}
+        </div>
+      </div>
+
+      <div style={{ paddingTop: 4, paddingBottom: 22, borderTop: `1px dashed ${C.line}`, display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
+        <span style={{ fontFamily: HAND, fontSize: 16, color: C.inkSoft }}>Today's mood</span>
+        <div style={{ display: "flex", gap: 4 }}>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button key={n} onClick={() => setMood(n)} aria-label={`${n} star`} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
+              <Star size={20} fill={n <= mood ? C.gold : "none"} color={n <= mood ? C.gold : C.line} strokeWidth={1.5} />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ paddingTop: 18, borderTop: `1px dashed ${C.line}` }}>
+        <YearHeatmap activity={activity} />
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------ Day dialog (event + doodle) ------------------ */
+function DayDialog({ date, dayTasks, onToggleTask, onAddEvent, doodles, onAddDoodle, onRemoveDoodle, onClose }) {
+  const [title, setTitle] = useState("");
+  const [time, setTime] = useState("");
+  const [importance, setImportance] = useState("medium");
+
+  const submitEvent = () => {
+    if (!title.trim()) return;
+    onAddEvent({ title: title.trim(), time: time || null, importance });
+    setTitle(""); setTime("");
+  };
+
+  return (
+    <div style={{ position: "absolute", inset: 0, background: "rgba(46,43,36,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 20, borderRadius: 16 }}>
+      <div style={{ background: C.paper, borderRadius: 14, padding: 20, width: 360, maxHeight: 500, overflowY: "auto", border: `1.5px solid ${C.line}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div style={{ fontFamily: DISPLAY, fontSize: 24, color: C.navy, fontWeight: 700 }}>{date}</div>
+          <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", color: C.inkSoft }}><X size={20} /></button>
+        </div>
+
+        {dayTasks.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontFamily: HAND, fontSize: 14, color: C.inkSoft, marginBottom: 6 }}>Events this day</div>
+            {dayTasks.map((t) => (
+              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${C.lineSoft}` }}>
+                <InkCheckbox checked={t.completed} onToggle={() => onToggleTask(t.id)} size={18} />
+                <ImportanceDot id={t.importance} />
+                {t.time && <span style={{ fontFamily: HAND, fontSize: 12, color: C.navySoft, width: 44 }}>{to12h(t.time)}</span>}
+                <span style={{ flex: 1, fontFamily: HAND, fontSize: 14, color: t.completed ? C.inkSoft : C.ink, textDecoration: t.completed ? "line-through" : "none" }}>{t.title}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontFamily: HAND, fontSize: 14, color: C.inkSoft, marginBottom: 6 }}>Add or import an event</div>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submitEvent()}
+            placeholder="Event title"
+            style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: `1.5px solid ${C.line}`, background: C.page, fontFamily: HAND, fontSize: 15, color: C.ink, outline: "none", marginBottom: 8 }} />
+          <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)}
+              style={{ padding: "7px 9px", borderRadius: 8, border: `1.5px solid ${C.line}`, fontFamily: HAND, fontSize: 14, background: C.page, color: C.ink }} />
+            <ImportancePicker value={importance} onChange={setImportance} />
+          </div>
+          <button onClick={submitEvent} style={{ width: "100%", padding: "9px 0", borderRadius: 9, border: "none", background: C.pink3, color: C.paper, fontFamily: HAND, fontSize: 15, cursor: "pointer" }}>
+            Add event
+          </button>
+        </div>
+
+        {doodles.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+            {doodles.map((d) => {
+              const meta = DOODLES.find((x) => x.id === d.iconId);
+              const Icon = meta?.Icon;
+              return (
+                <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 5, background: C.pink1, color: C.pink4, borderRadius: 999, padding: "4px 8px 4px 10px", fontFamily: HAND, fontSize: 13 }}>
+                  {Icon && <Icon size={14} />} {d.label}
+                  <button onClick={() => onRemoveDoodle(d.id)} aria-label="Remove" style={{ background: "none", border: "none", cursor: "pointer", color: C.pink4, display: "flex" }}><X size={12} /></button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div style={{ fontFamily: HAND, fontSize: 14, color: C.inkSoft, marginBottom: 8 }}>Drop a doodle</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }}>
+          {DOODLES.map((d) => {
+            const Icon = d.Icon;
+            return (
+              <button key={d.id} onClick={() => onAddDoodle(d)} title={d.label} style={{
+                display: "flex", alignItems: "center", justifyContent: "center", aspectRatio: "1", borderRadius: 8,
+                border: `1.5px solid ${C.lineSoft}`, background: C.page, cursor: "pointer", color: C.ink,
+              }}><Icon size={17} /></button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* --------------------------------- Calendar view ------------------------------ */
+function CalendarView({ tasks, setTasks, doodleMap, setDoodleMap }) {
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [openDate, setOpenDate] = useState(null);
+  const [boxShade, setBoxShade] = useState("paper");
+  const base = new Date(); base.setDate(1); base.setMonth(base.getMonth() + monthOffset);
+  const year = base.getFullYear(), month = base.getMonth();
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const byDate = useMemo(() => {
+    const map = {};
+    tasks.forEach((t) => { (map[t.date] ||= []).push(t); });
+    return map;
+  }, [tasks]);
+
+  const cells = [];
+  for (let i = 0; i < firstWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  const addDoodle = (dateStr, meta) => {
+    setDoodleMap((prev) => { const list = prev[dateStr] || []; return { ...prev, [dateStr]: [...list, { id: nextId(), iconId: meta.id, label: meta.label }] }; });
+  };
+  const removeDoodle = (dateStr, id) => {
+    setDoodleMap((prev) => ({ ...prev, [dateStr]: (prev[dateStr] || []).filter((d) => d.id !== id) }));
+  };
+  const toggleTask = (id) => setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)));
+  const addEvent = (dateStr, { title, time, importance }) => {
+    setTasks((prev) => [...prev, { id: nextId(), date: dateStr, title, time, completed: false, importance }]);
+  };
+
+  const boxColor = BOX_SHADES.find((s) => s.id === boxShade).color;
+
+  return (
+    <div style={{ position: "relative" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <button onClick={() => setMonthOffset((m) => m - 1)} aria-label="Previous month" style={{ background: "none", border: "none", cursor: "pointer", color: C.ink }}><ChevronLeft size={20} /></button>
+        <div style={{ fontFamily: DISPLAY, fontSize: 27, fontWeight: 700, color: C.navy }}>{MONTH_NAMES[month]} {year}</div>
+        <button onClick={() => setMonthOffset((m) => m + 1)} aria-label="Next month" style={{ background: "none", border: "none", cursor: "pointer", color: C.ink }}><ChevronRight size={20} /></button>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <button onClick={() => setOpenDate(fmtDate(new Date()))} style={{
+          display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "none",
+          background: C.pink3, color: C.paper, fontFamily: HAND, fontSize: 14, cursor: "pointer",
+        }}>
+          <Plus size={15} /> Add / import event
+        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontFamily: HAND, fontSize: 13, color: C.inkSoft }}>Box shade</span>
+          {BOX_SHADES.map((s) => (
+            <button key={s.id} onClick={() => setBoxShade(s.id)} title={s.label} aria-label={s.label} style={{
+              width: 18, height: 18, borderRadius: "50%", background: s.color, cursor: "pointer",
+              border: boxShade === s.id ? `2px solid ${C.navy}` : `1.5px solid ${C.lineSoft}`, padding: 0,
+            }} />
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 4 }}>
+        {DAY_NAMES.map((d) => <div key={d} style={{ textAlign: "center", fontFamily: HAND, fontSize: 12, color: C.inkSoft }}>{d}</div>)}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+        {cells.map((d, i) => {
+          if (d === null) return <div key={i} />;
+          const dateStr = `${year}-${pad(month + 1)}-${pad(d)}`;
+          const isToday = dateStr === fmtDate(new Date());
+          const dayTasks = (byDate[dateStr] || []).slice(0, 3);
+          const doodles = (doodleMap[dateStr] || []).slice(0, 4);
+          return (
+            <button key={i} onClick={() => setOpenDate(dateStr)} style={{
+              minHeight: 78, border: `1.5px solid ${isToday ? C.navy : C.lineSoft}`, borderRadius: 9,
+              background: boxColor, padding: 6, display: "flex", flexDirection: "column", alignItems: "flex-start",
+              gap: 3, cursor: "pointer", textAlign: "left",
+            }}>
+              <span style={{ fontFamily: HAND, fontSize: 14, color: isToday ? C.navy : C.ink }}>{d}</span>
+              {dayTasks.map((t) => {
+                const Icon = getSmartIcon(t.title);
+                return (
+                  <span key={t.id} style={{ display: "flex", alignItems: "center", gap: 3, fontFamily: HAND, fontSize: 10.5, color: C.inkSoft, maxWidth: "100%", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+                    <ImportanceDot id={t.importance} size={6} />
+                    {Icon && <Icon size={10} style={{ flexShrink: 0 }} />} {t.title}
+                  </span>
+                );
+              })}
+              {doodles.length > 0 && (
+                <div style={{ display: "flex", gap: 3, marginTop: "auto" }}>
+                  {doodles.map((dd) => { const meta = DOODLES.find((x) => x.id === dd.iconId); const Icon = meta?.Icon; return Icon ? <Icon key={dd.id} size={11} color={C.pink4} /> : null; })}
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {openDate && (
+        <DayDialog
+          date={openDate}
+          dayTasks={byDate[openDate] || []}
+          onToggleTask={toggleTask}
+          onAddEvent={(evt) => addEvent(openDate, evt)}
+          doodles={doodleMap[openDate] || []}
+          onAddDoodle={(meta) => addDoodle(openDate, meta)}
+          onRemoveDoodle={(id) => removeDoodle(openDate, id)}
+          onClose={() => setOpenDate(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* --------------------------------- Focus view -------------------------------- */
+const AMBIENTS = [
+  { id: "rain", label: "Rain", icon: CloudRain, kind: "filtered" },
+  { id: "brown", label: "Brown noise", icon: Waves, kind: "brown" },
+  { id: "lofi", label: "Lo-fi", icon: Music2, kind: null },
+];
+function useNoise() {
+  const ctxRef = useRef(null);
+  const nodesRef = useRef(null);
+  const [playingId, setPlayingId] = useState(null);
+  const stop = useCallback(() => {
+    if (nodesRef.current) { try { nodesRef.current.src.stop(); } catch (e) {} nodesRef.current = null; }
+    setPlayingId(null);
+  }, []);
+  const play = useCallback((ambient) => {
+    if (!ambient.kind) return;
+    if (!ctxRef.current) { const AC = window.AudioContext || window.webkitAudioContext; ctxRef.current = new AC(); }
+    const ctx = ctxRef.current;
+    if (ctx.state === "suspended") ctx.resume();
+    if (nodesRef.current) { try { nodesRef.current.src.stop(); } catch (e) {} nodesRef.current = null; }
+    if (playingId === ambient.id) { setPlayingId(null); return; }
+    const bufferSize = 2 * ctx.sampleRate;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    if (ambient.kind === "brown") {
+      let last = 0;
+      for (let i = 0; i < bufferSize; i++) { const white = Math.random() * 2 - 1; last = (last + 0.02 * white) / 1.02; data[i] = last * 3.2; }
+    } else {
+      for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    }
+    const src = ctx.createBufferSource(); src.buffer = buffer; src.loop = true;
+    const gain = ctx.createGain(); gain.gain.value = 0.06;
+    if (ambient.kind === "filtered") {
+      const filter = ctx.createBiquadFilter(); filter.type = "lowpass"; filter.frequency.value = 1200;
+      src.connect(filter); filter.connect(gain);
+    } else src.connect(gain);
+    gain.connect(ctx.destination); src.start();
+    nodesRef.current = { src, gain };
+    setPlayingId(ambient.id);
+  }, [playingId]);
+  useEffect(() => stop, [stop]);
+  return { playingId, play, stop };
+}
+
+function FocusView({ tasks }) {
+  const today = fmtDate(new Date());
+  const openTasks = tasks.filter((t) => t.date === today && !t.completed);
+  const [focusTaskId, setFocusTaskId] = useState(openTasks[0]?.id ?? null);
+  const [mode, setMode] = useState("work");
+  const [workMin, setWorkMin] = useState(25);
+  const [breakMin, setBreakMin] = useState(5);
+  const durationSec = (mode === "work" ? workMin : breakMin) * 60;
+  const [remaining, setRemaining] = useState(durationSec);
+  const [running, setRunning] = useState(false);
+  const endTimeRef = useRef(null);
+
+  useEffect(() => { if (!running) setRemaining(durationSec); }, [durationSec, running]);
+  useEffect(() => {
+    if (!running) return;
+    endTimeRef.current = Date.now() + remaining * 1000;
+    const tick = () => {
+      const left = Math.max(0, Math.round((endTimeRef.current - Date.now()) / 1000));
+      setRemaining(left);
+      if (left <= 0) { setRunning(false); setMode((m) => (m === "work" ? "break" : "work")); }
+    };
+    const interval = setInterval(tick, 250);
+    const onVis = () => tick();
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", onVis);
+    return () => { clearInterval(interval); document.removeEventListener("visibilitychange", onVis); window.removeEventListener("focus", onVis); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running]);
+
+  const toggleRun = () => setRunning((r) => !r);
+  const reset = () => { setRunning(false); setRemaining(durationSec); };
+  const pct = 1 - remaining / durationSec;
+  const mm = pad(Math.floor(remaining / 60)), ss = pad(remaining % 60);
+  const { playingId, play } = useNoise();
+  const radius = 90, circumference = 2 * Math.PI * radius;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 22 }}>
+        {["work", "break"].map((m) => (
+          <button key={m} onClick={() => { setMode(m); setRunning(false); }} style={{
+            padding: "6px 16px", borderRadius: 999, border: `1.5px solid ${C.ink}`, cursor: "pointer",
+            background: mode === m ? C.ink : "transparent", color: mode === m ? C.paper : C.ink, fontFamily: HAND, fontSize: 15,
+          }}>{m === "work" ? "Focus" : "Break"}</button>
+        ))}
+      </div>
+      <svg width="220" height="220" viewBox="0 0 220 220" style={{ marginBottom: 18 }}>
+        <circle cx="110" cy="110" r={radius} fill="none" stroke={C.pink0} strokeWidth="14" />
+        <circle cx="110" cy="110" r={radius} fill="none" stroke={mode === "work" ? C.pink3 : C.navy} strokeWidth="14"
+          strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={circumference * (1 - pct)}
+          transform="rotate(-90 110 110)" style={{ transition: "stroke-dashoffset 0.3s linear" }} />
+        <text x="110" y="104" textAnchor="middle" fontFamily={DISPLAY} fontSize="42" fontWeight="700" fill={C.ink}>{mm}:{ss}</text>
+        <text x="110" y="130" textAnchor="middle" fontFamily={HAND} fontSize="13" fill={C.inkSoft}>{mode === "work" ? "focusing" : "on a break"}</text>
+      </svg>
+      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+        <button onClick={toggleRun} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", borderRadius: 10, border: "none", background: C.pink3, color: C.paper, fontFamily: HAND, fontSize: 15, cursor: "pointer" }}>
+          {running ? <Pause size={16} /> : <Play size={16} />} {running ? "Pause" : "Start"}
+        </button>
+        <button onClick={reset} aria-label="Reset timer" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 40, height: 40, borderRadius: 10, border: `1.5px solid ${C.line}`, background: C.paper, color: C.ink, cursor: "pointer" }}>
+          <RotateCcw size={16} />
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: 16, marginBottom: 22, fontFamily: HAND, fontSize: 14, color: C.inkSoft }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 6 }}>Focus
+          <input type="number" min={1} max={90} value={workMin} disabled={running} onChange={(e) => setWorkMin(Math.max(1, Number(e.target.value) || 1))}
+            style={{ width: 44, padding: "4px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontFamily: HAND }} /> min
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 6 }}>Break
+          <input type="number" min={1} max={30} value={breakMin} disabled={running} onChange={(e) => setBreakMin(Math.max(1, Number(e.target.value) || 1))}
+            style={{ width: 44, padding: "4px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontFamily: HAND }} /> min
+        </label>
+      </div>
+      <div style={{ width: "100%", maxWidth: 360, marginBottom: 22 }}>
+        <SectionLabel text="Focusing on" />
+        {openTasks.length === 0 && <EmptyNote text="No open tasks — enjoy the quiet." />}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {openTasks.map((t) => (
+            <button key={t.id} onClick={() => setFocusTaskId(t.id)} style={{
+              textAlign: "left", padding: "9px 12px", borderRadius: 8, cursor: "pointer",
+              border: `1.5px solid ${focusTaskId === t.id ? C.pink3 : C.lineSoft}`,
+              background: focusTaskId === t.id ? C.pink1 : C.paper, fontFamily: HAND, fontSize: 15, color: C.ink,
+              display: "flex", alignItems: "center", gap: 8,
+            }}><ImportanceDot id={t.importance} /> {t.title}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{ width: "100%", maxWidth: 360 }}>
+        <SectionLabel text="Ambient sound" />
+        <div style={{ display: "flex", gap: 8 }}>
+          {AMBIENTS.map((a) => {
+            const Icon = a.icon; const active = playingId === a.id;
+            return (
+              <button key={a.id} onClick={() => play(a)} title={a.kind ? "" : "Bundle your own track — no local synth for this one"} style={{
+                flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "10px 6px",
+                borderRadius: 10, cursor: a.kind ? "pointer" : "not-allowed", opacity: a.kind ? 1 : 0.5,
+                border: `1.5px solid ${active ? C.navy : C.lineSoft}`, background: active ? C.pink1 : C.paper, fontFamily: HAND, fontSize: 13,
+              }}>
+                <Icon size={18} color={active ? C.navy : C.inkSoft} /> {a.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------- App root --------------------------------- */
+export default function AnalogTodoApp() {
+  const [tasks, setTasks] = useState(makeSeed);
+  const [activity] = useState(makeDailyActivity);
+  const [doodleMap, setDoodleMap] = useState({});
+  const [active, setActive] = useState("today");
+  const [mood, setMood] = useState(3);
+
+  return (
+    <div style={{
+      background: C.page, minHeight: 480, padding: "28px 24px", borderRadius: 16,
+      backgroundImage: `linear-gradient(${C.gridLine} 1px, transparent 1px), linear-gradient(90deg, ${C.gridLine} 1px, transparent 1px)`,
+      backgroundSize: "22px 22px", position: "relative",
+    }}>
+      <style>{`
+        ${FONTS}
+        @keyframes inkfill { from { stroke-dashoffset: 22; } to { stroke-dashoffset: 0; } }
+        input:focus, textarea:focus { border-color: ${C.pink3} !important; }
+      `}</style>
+      <div style={{ maxWidth: 560, margin: "0 auto" }}>
+        <TabBar active={active} setActive={setActive} />
+        {active === "today" && <TodayView tasks={tasks} setTasks={setTasks} mood={mood} setMood={setMood} activity={activity} />}
+        {active === "calendar" && <CalendarView tasks={tasks} setTasks={setTasks} doodleMap={doodleMap} setDoodleMap={setDoodleMap} />}
+        {active === "focus" && <FocusView tasks={tasks} />}
+      </div>
+    </div>
+  );
+}
