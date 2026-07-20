@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import "./go";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "doME — a hybrid to-do journal",
