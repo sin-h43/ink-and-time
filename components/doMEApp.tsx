@@ -587,12 +587,12 @@ function CalendarView({
       </div>
       <div style={{overflowX: "auto", paddingBottom:8}}>
         <div style={{minWidth: 400}}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 4 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(90px, 1fr))", gap: 4, marginBottom: 4 }}>
         {DAY_NAMES.map((d) => <div key={d} style={{ textAlign: "center", fontFamily: HAND, fontSize: 12, color: C.inkSoft }}>{d}</div>)}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(90px, 1fr))", gap: 4 }}>
         {cells.map((d, i) => {
-          if (d === null) return <div key={i} />;
+          if (d === null) return <div key={i} style={{minHeight:78, minWidth:48}} />;
           const dateStr = `${year}-${pad(month + 1)}-${pad(d)}`;
           const isToday = dateStr === fmtDate(new Date());
           const dayTasks = (byDate[dateStr] || []).slice(0, 3);
@@ -601,7 +601,7 @@ function CalendarView({
             <button key={i} onClick={() => setOpenDate(dateStr)} style={{
               minHeight: 78, border: `1.5px solid ${isToday ? C.navy : C.lineSoft}`, borderRadius: 9,
               background: boxColor, padding: 6, display: "flex", flexDirection: "column", alignItems: "flex-start",
-              gap: 3, cursor: "pointer", textAlign: "left",
+              gap: 3, cursor: "pointer", textAlign: "left", width: "100%", minWidth: 0,
             }}>
               <span style={{ fontFamily: HAND, fontSize: 14, color: isToday ? C.navy : C.ink }}>{d}</span>
               {dayTasks.map((t) => {
