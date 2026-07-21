@@ -23,11 +23,11 @@ const C = {
   line: "#DDD5C2",
   lineSoft: "#EBE4D4",
   gridLine: "rgba(190, 175, 140, 0.16)",
-  pink0: "#EFE9DC",
-  pink1: "#F3D9DD",
-  pink2: "#E8AEBB",
-  pink3: "#D97690",
-  pink4: "#B54F70",
+  pink0: "#F3D9DD",
+  pink1: "#E8AEBB",
+  pink2: "#D97690",
+  pink3: "#B54F70",
+  pink4: "#b53a62",
   gold: "#C69A55",
 };
 
@@ -37,7 +37,7 @@ const DISPLAY = "'Caveat', cursive";
 /* -------------------------------- Importance -------------------------------- */
 const IMPORTANCE: { id: Importance; label: string; color: string }[] = [
   { id: "low", label: "Low", color: C.pink2 },
-  { id: "medium", label: "Medium", color: C.pink3 },
+  { id: "medium", label: "Medium", color: C.pink2 },
   { id: "high", label: "High", color: C.pink4 },
 ];
 const importanceColor = (id: Importance) => (IMPORTANCE.find((i) => i.id === id) || IMPORTANCE[1]).color;
@@ -147,22 +147,22 @@ const DOODLES: { id: string; Icon: LucideIcon; label: string }[] = [
   { id: "shower", Icon: ShowerHead, label: "shower" },
 ];
 
-function tierFromPct(pct: number, totalTasks: number) {
+function tierFromCount(totalTasks: number, doneTasks: number) {
   if (totalTasks === 0) return -1;
-  if (pct >= 100) return 4;
-  if (pct >= 67) return 3;
-  if (pct >= 34) return 2;
-  if (pct > 0) return 1;
-  return 0;
+  if (doneTasks === 0) return 0;   // Tasks exist, but 0 completed
+  if (doneTasks === 1) return 1;   // 1 task done
+  if (doneTasks === 2) return 2;   // 2 tasks done
+  if (doneTasks === 3) return 3;   // 3 tasks done
+  return 4;
 }
-const TIER_COLOR = [C.pink0, C.pink1, C.pink2, C.pink3, C.pink4];
+const TIER_COLOR = [C.pink0, C.pink1, C.pink2, C.pink2, C.pink4];
 
 /* ----------------------------- Ink-fill checkbox ---------------------------- */
 function InkCheckbox({ checked, onToggle, size = 22 }: { checked: boolean; onToggle: () => void; size?: number }) {
   return (
     <button onClick={onToggle} aria-label={checked ? "Mark incomplete" : "Mark complete"} style={{
       width: size, height: size, borderRadius: 6, border: `2px solid ${C.ink}`,
-      background: checked ? C.pink3 : "transparent", display: "flex",
+      background: checked ? C.pink2 : "transparent", display: "flex",
       alignItems: "center", justifyContent: "center", cursor: "pointer",
       flexShrink: 0, transition: "background 0.25s ease, transform 0.15s ease",
       transform: checked ? "scale(1.04)" : "scale(1)", padding: 0,
@@ -265,8 +265,7 @@ function YearHeatmap({ tasks }: { tasks: Task[] }) {
     if (date > fmtDate(today)) continue;
     const info = activity[date];
     const total = info ? info.total : 0;
-    const pct = total ? (info.done / total) * 100 : 0;
-    const tier = tierFromPct(pct, total);
+    const tier = tierFromCount(total, info? info.done : 0);
     if (tier === -1) continue;
     if (tier === 0) break;
     streak++;
@@ -301,8 +300,7 @@ function YearHeatmap({ tasks }: { tasks: Task[] }) {
                     const isFuture = dateStr > fmtDate(today);
                     const info = activity[dateStr];
                     const total = info ? info.total : 0;
-                    const pct = total ? (info.done / total) * 100 : 0;
-                    const tier = tierFromPct(pct, total);
+                    const tier = tierFromCount(total, info? info.done : 0);
                     return (
                       <div key={di} title={isFuture ? "" : total === 0 ? `${dateStr}: rest day` : `${dateStr}: ${info.done}/${info.total} done`}
                         style={{ width: 10, height: 10, borderRadius: 2.5, background: isFuture ? "transparent" : tier === -1 ? C.lineSoft : TIER_COLOR[tier], border: isFuture ? `1px dashed ${C.lineSoft}` : "none" }} />
@@ -369,7 +367,7 @@ function TodayView({
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}>
-        <div style={{ width: 52, height: 52, background: C.pink3, color: C.paper, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: DISPLAY, fontWeight: 700, fontSize: 30 }}>
+        <div style={{ width: 52, height: 52, background: C.pink2, color: C.paper, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: DISPLAY, fontWeight: 700, fontSize: 30 }}>
           {dateObj.getDate()}
         </div>
         <div>
@@ -390,7 +388,7 @@ function TodayView({
           }}>
             <Clock size={18} />
           </button>
-          <button onClick={handleAdd} aria-label="Add task" style={{ width: 42, height: 42, borderRadius: 10, border: "none", background: C.pink3, color: C.paper, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+          <button onClick={handleAdd} aria-label="Add task" style={{ width: 42, height: 42, borderRadius: 10, border: "none", background: C.pink2, color: C.paper, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
             <Plus size={20} />
           </button>
         </div>
@@ -493,7 +491,7 @@ function DayDialog({
               style={{ padding: "7px 9px", borderRadius: 8, border: `1.5px solid ${C.line}`, fontFamily: HAND, fontSize: 14, background: C.page, color: C.ink }} />
             <ImportancePicker value={importance} onChange={setImportance} />
           </div>
-          <button onClick={submitEvent} style={{ width: "100%", padding: "9px 0", borderRadius: 9, border: "none", background: C.pink3, color: C.paper, fontFamily: HAND, fontSize: 15, cursor: "pointer" }}>
+          <button onClick={submitEvent} style={{ width: "100%", padding: "9px 0", borderRadius: 9, border: "none", background: C.pink2, color: C.paper, fontFamily: HAND, fontSize: 15, cursor: "pointer" }}>
             Add event
           </button>
         </div>
@@ -571,7 +569,7 @@ function CalendarView({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <button onClick={() => setOpenDate(fmtDate(new Date()))} style={{
           display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "none",
-          background: C.pink3, color: C.paper, fontFamily: HAND, fontSize: 14, cursor: "pointer",
+          background: C.pink2, color: C.paper, fontFamily: HAND, fontSize: 14, cursor: "pointer",
         }}>
           <Plus size={15} /> Add / import event
         </button>
@@ -744,7 +742,7 @@ function FocusView({ tasks, toggleTask }: { tasks: Task[]; toggleTask: (id: numb
     return (
       <button onClick={() => setFocusTaskId(t.id!)} style={{
         textAlign: "left", padding: "9px 12px", borderRadius: 8, cursor: "pointer",
-        border: `1.5px solid ${focusTaskId === t.id ? C.pink3 : C.lineSoft}`,
+        border: `1.5px solid ${focusTaskId === t.id ? C.pink2 : C.lineSoft}`,
         background: focusTaskId === t.id ? C.pink1 : C.paper, fontFamily: HAND, fontSize: 15, color: C.ink,
         display: "flex", alignItems: "center", gap: 8, width: "100%",
       }}>
@@ -769,14 +767,14 @@ function FocusView({ tasks, toggleTask }: { tasks: Task[]; toggleTask: (id: numb
       </div>
       <svg width="220" height="220" viewBox="0 0 220 220" style={{ marginBottom: 18 }}>
         <circle cx="110" cy="110" r={radius} fill="none" stroke={C.pink0} strokeWidth="14" />
-        <circle cx="110" cy="110" r={radius} fill="none" stroke={mode === "work" ? C.pink3 : C.navy} strokeWidth="14"
+        <circle cx="110" cy="110" r={radius} fill="none" stroke={mode === "work" ? C.pink2 : C.navy} strokeWidth="14"
           strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={circumference * (1 - pct)}
           transform="rotate(-90 110 110)" style={{ transition: "stroke-dashoffset 0.3s linear" }} />
         <text x="110" y="104" textAnchor="middle" fontFamily={DISPLAY} fontSize="42" fontWeight="700" fill={C.ink}>{mm}:{ss}</text>
         <text x="110" y="130" textAnchor="middle" fontFamily={HAND} fontSize="13" fill={C.inkSoft}>{mode === "work" ? "focusing" : "on a break"}</text>
       </svg>
       <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-        <button onClick={toggleRun} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", borderRadius: 10, border: "none", background: C.pink3, color: C.paper, fontFamily: HAND, fontSize: 15, cursor: "pointer" }}>
+        <button onClick={toggleRun} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", borderRadius: 10, border: "none", background: C.pink2, color: C.paper, fontFamily: HAND, fontSize: 15, cursor: "pointer" }}>
           {running ? <Pause size={16} /> : <Play size={16} />} {running ? "Pause" : "Start"}
         </button>
         <button onClick={reset} aria-label="Reset timer" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 40, height: 40, borderRadius: 10, border: `1.5px solid ${C.line}`, background: C.paper, color: C.ink, cursor: "pointer" }}>
@@ -852,7 +850,7 @@ export default function DoMEApp() {
     }}>
       <style>{`
         @keyframes inkfill { from { stroke-dashoffset: 22; } to { stroke-dashoffset: 0; } }
-        input:focus, textarea:focus { border-color: ${C.pink3} !important; }
+        input:focus, textarea:focus { border-color: ${C.pink2} !important; }
       `}</style>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         <TabBar active={active} setActive={setActive} />
