@@ -325,14 +325,14 @@ function YearHeatmap({ tasks }: { tasks: Task[] }) {
 
 /* --------------------------------- Today view -------------------------------- */
 function TodayView({
-  tasks, addTask, toggleTask, dayMap, updateMood,
+  tasks, addTask, toggleTask, dayMap, updateMood, removeTask
 }: {
   tasks: Task[];
   addTask: (t: { date: string; title: string; time: string | null; importance: Importance }) => void;
   toggleTask: (id: number) => void;
   dayMap : Record<string, DayMeta>;
-  updateMood: (date:string, mood:number)=> void;
-
+  removeTask: (id: number) =>void;
+  updateMood: (date:string, mood: number)=>void;
 }) {
   const [input, setInput] = useState("");
   const [scheduleOn, setScheduleOn] = useState(false);
@@ -357,13 +357,26 @@ function TodayView({
   const TaskRow = ({ t, showTime }: { t: Task; showTime?: boolean }) => {
     const Icon = getSmartIcon(t.title);
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 0", borderBottom: `1px solid ${C.lineSoft}` }}>
+<div style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 0", borderBottom: `1px solid ${C.lineSoft}` }}>
         {showTime
           ? <span style={{ fontFamily: HAND, fontSize: 13, color: C.navySoft, width: 50, flexShrink: 0 }}>{to12h(t.time)}</span>
           : <InkCheckbox checked={t.completed} onToggle={() => toggleTask(t.id!)} />}
         <ImportanceDot id={t.importance} />
         {Icon && <Icon size={16} color={t.completed ? C.inkSoft : C.navySoft} style={{ flexShrink: 0 }} />}
-        <span style={{ flex: 1, fontFamily: HAND, fontSize: 16, color: t.completed ? C.inkSoft : C.ink, textDecoration: t.completed ? "line-through" : "none" }}>{t.title}</span>
+        
+        <span style={{ flex: 1, fontFamily: HAND, fontSize: 16, color: t.completed ? C.inkSoft : C.ink, textDecoration: t.completed ? "line-through" : "none" }}>
+          {t.title}
+        </span>
+        
+        {/* ADD THIS DELETE BUTTON */}
+        <button 
+          onClick={() => removeTask(t.id!)} 
+          aria-label="Delete task" 
+          style={{ background: "none", border: "none", cursor: "pointer", color: C.pink3, opacity: 0.6, padding: 4 }}
+        >
+          <X size={16} />
+        </button>
+
         {showTime && <InkCheckbox checked={t.completed} onToggle={() => toggleTask(t.id!)} />}
       </div>
     );
@@ -443,11 +456,12 @@ function TodayView({
 
 /* ------------------------------ Day dialog (event + doodle) ------------------ */
 function DayDialog({
-  date, dayTasks, onToggleTask, onAddEvent, doodles, onAddDoodle, onRemoveDoodle, onClose, currentShade, onUpdateShade,
+  date, dayTasks, onToggleTask,onRemoveTask, onAddEvent, doodles, onAddDoodle, onRemoveDoodle, onClose, currentShade, onUpdateShade,
 }: {
   date: string;
   dayTasks: Task[];
   onToggleTask: (id: number) => void;
+  onRemoveTask: (id:number) => void;
   onAddEvent: (evt: { title: string; time: string | null; importance: Importance }) => void;
   doodles: Doodle[];
   onAddDoodle: (iconId: string, label: string) => void;
@@ -484,6 +498,13 @@ function DayDialog({
                 <ImportanceDot id={t.importance} />
                 {t.time && <span style={{ fontFamily: HAND, fontSize: 12, color: C.navySoft, width: 44 }}>{to12h(t.time)}</span>}
                 <span style={{ flex: 1, fontFamily: HAND, fontSize: 14, color: t.completed ? C.inkSoft : C.ink, textDecoration: t.completed ? "line-through" : "none" }}>{t.title}</span>
+                <button 
+                  onClick={() => onRemoveTask(t.id!)} 
+                  aria-label="Delete" 
+                  style={{ background: "none", border: "none", cursor: "pointer", color: C.pink3, opacity: 0.6 }}
+                >
+                  <X size={14} />
+                </button>
               </div>
             ))}
           </div>
@@ -553,7 +574,7 @@ function DayDialog({
 
 /* --------------------------------- Calendar view ------------------------------ */
 function CalendarView({
-  tasks, addTask, toggleTask, doodleMap, addDoodle, removeDoodle, dayMap, updateShade,
+  tasks, addTask, toggleTask, doodleMap, addDoodle, removeDoodle, dayMap, updateShade, removeTask
 }: {
   tasks: Task[];
   addTask: (t: { date: string; title: string; time: string | null; importance: Importance }) => void;
@@ -563,6 +584,7 @@ function CalendarView({
   updateShade: (date: string, shade:string)=> void;
   addDoodle: (date: string, iconId: string, label: string) => void;
   removeDoodle: (id: number) => void;
+  removeTask: (id: number)=>void;
 }) {
   const [monthOffset, setMonthOffset] = useState(0);
   const [openDate, setOpenDate] = useState<string | null>(null);
@@ -645,6 +667,7 @@ function CalendarView({
           date={openDate}
           dayTasks={byDate[openDate] || []}
           onToggleTask={toggleTask}
+          onRemoveTask= {removeTask}
           onAddEvent={(evt) => addTask({ date: openDate, ...evt })}
           doodles={doodleMap[openDate] || []}
           onAddDoodle={(iconId, label) => addDoodle(openDate, iconId, label)}
@@ -856,7 +879,7 @@ function FocusView({ tasks, toggleTask }: { tasks: Task[]; toggleTask: (id: numb
 
 /* ---------------------------------- App root --------------------------------- */
 export default function DoMEApp() {
-  const { tasks, addTask, toggleTask } = useTasks();
+  const { tasks, addTask, toggleTask, removeTask } = useTasks();
   const { doodleMap, addDoodle, removeDoodle } = useDoodles();
   const [active, setActive] = useState("today");
   const {dayMap, updateShade, updateMood} = useDays();
@@ -873,10 +896,18 @@ export default function DoMEApp() {
       `}</style>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         <TabBar active={active} setActive={setActive} />
-        {active === "today" && <TodayView tasks={tasks} addTask={addTask} toggleTask={toggleTask} dayMap={dayMap} updateMood = {updateMood} />}
+        {active === "today" && 
+        <TodayView 
+          tasks={tasks} 
+          addTask={addTask} 
+          toggleTask={toggleTask} 
+          dayMap={dayMap} 
+          updateMood = {updateMood}
+          removeTask = {removeTask}
+        />}
         {active === "calendar" && (
           <CalendarView
-            tasks={tasks} addTask={addTask} toggleTask={toggleTask}
+            tasks={tasks} addTask={addTask} toggleTask={toggleTask} removeTask = {removeTask}
             doodleMap={doodleMap} addDoodle={addDoodle} removeDoodle={removeDoodle}
             dayMap={dayMap} updateShade={updateShade}
           />
