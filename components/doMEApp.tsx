@@ -462,7 +462,7 @@ function DayDialog({
   };
 
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(46,43,36,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 20, borderRadius: 16 }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(46,43,36,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 20, borderRadius: 16 }}>
       <div style={{ background: C.paper, borderRadius: 14, padding: 20, width: 360, maxHeight: 500, overflowY: "auto", border: `1.5px solid ${C.line}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div style={{ fontFamily: DISPLAY, fontSize: 24, color: C.navy, fontWeight: 700 }}>{date}</div>
@@ -585,7 +585,8 @@ function CalendarView({
           ))}
         </div>
       </div>
-
+      <div style={{overflowX: "auto", paddingBottom:8}}>
+        <div style={{minWidth: 400}}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 4 }}>
         {DAY_NAMES.map((d) => <div key={d} style={{ textAlign: "center", fontFamily: HAND, fontSize: 12, color: C.inkSoft }}>{d}</div>)}
       </div>
@@ -620,6 +621,8 @@ function CalendarView({
             </button>
           );
         })}
+      </div>
+        </div>
       </div>
 
       {openDate && (
