@@ -8,9 +8,11 @@ import {
   ShoppingBag, Moon, Mail, Phone, Users, Droplet, Footprints,
   NotebookPen, Music, Gift, Heart, Bike, ShowerHead, LucideIcon,
 } from "lucide-react";
-import { Task, Importance } from "@/lib/db";
+import { Task, Importance,Doodle, DayMeta } from "@/lib/db";
 import { useTasks } from "@/lib/useTasks";
 import { useDoodles } from "@/lib/useDoodles";
+import { useDays } from "@/lib/useDays";
+
 
 /* ---------------------------------- Tokens --------------------------------- */
 const C = {
@@ -323,13 +325,14 @@ function YearHeatmap({ tasks }: { tasks: Task[] }) {
 
 /* --------------------------------- Today view -------------------------------- */
 function TodayView({
-  tasks, addTask, toggleTask, mood, setMood,
+  tasks, addTask, toggleTask, dayMap, updateMood,
 }: {
   tasks: Task[];
   addTask: (t: { date: string; title: string; time: string | null; importance: Importance }) => void;
   toggleTask: (id: number) => void;
-  mood: number;
-  setMood: (n: number) => void;
+  dayMap : Record<string, DayMeta>;
+  updateMood: (date:string, mood:number)=> void;
+
 }) {
   const [input, setInput] = useState("");
   const [scheduleOn, setScheduleOn] = useState(false);
@@ -340,6 +343,8 @@ function TodayView({
   const scheduled = todays.filter((t) => t.time).sort((a, b) => (a.time as string).localeCompare(b.time as string));
   const unscheduled = todays.filter((t) => !t.time);
   const dateObj = new Date();
+
+  const currentMood = dayMap[today]?.mood || 0;
 
   const handleAdd = () => {
     if (!input.trim()) return;
@@ -422,8 +427,8 @@ function TodayView({
         <span style={{ fontFamily: HAND, fontSize: 16, color: C.inkSoft }}>Today's mood</span>
         <div style={{ display: "flex", gap: 4 }}>
           {[1, 2, 3, 4, 5].map((n) => (
-            <button key={n} onClick={() => setMood(n)} aria-label={`${n} star`} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
-              <Star size={20} fill={n <= mood ? C.gold : "none"} color={n <= mood ? C.gold : C.line} strokeWidth={1.5} />
+            <button key={n} onClick={() => updateMood(today, n)} aria-label={`${n} star`} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
+              <Star size={20} fill={n <= currentMood ? C.gold : "none"} color={n <= currentMood ? C.gold : C.line} strokeWidth={1.5} />
             </button>
           ))}
         </div>
@@ -444,12 +449,12 @@ function DayDialog({
   dayTasks: Task[];
   onToggleTask: (id: number) => void;
   onAddEvent: (evt: { title: string; time: string | null; importance: Importance }) => void;
-  doodles: { id: number; iconId: string; label: string }[];
+  doodles: Doodle[];
   onAddDoodle: (iconId: string, label: string) => void;
   onRemoveDoodle: (id: number) => void;
   onClose: () => void;
   currentShade: string;
-   onUpdateShade: (shadeId:string)=>void;
+  onUpdateShade: (shadeId:string)=>void;
 
 }) {
   const [title, setTitle] = useState("");
@@ -523,7 +528,7 @@ function DayDialog({
               return (
                 <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 5, background: C.pink1, color: C.pink4, borderRadius: 999, padding: "4px 8px 4px 10px", fontFamily: HAND, fontSize: 13 }}>
                   {Icon && <Icon size={14} />} {d.label}
-                  <button onClick={() => onRemoveDoodle(d.id)} aria-label="Remove" style={{ background: "none", border: "none", cursor: "pointer", color: C.pink4, display: "flex" }}><X size={12} /></button>
+                  <button onClick={() => onRemoveDoodle(d.id!)} aria-label="Remove" style={{ background: "none", border: "none", cursor: "pointer", color: C.pink4, display: "flex" }}><X size={12} /></button>
                 </div>
               );
             })}
@@ -548,12 +553,14 @@ function DayDialog({
 
 /* --------------------------------- Calendar view ------------------------------ */
 function CalendarView({
-  tasks, addTask, toggleTask, doodleMap, addDoodle, removeDoodle,
+  tasks, addTask, toggleTask, doodleMap, addDoodle, removeDoodle, dayMap, updateShade,
 }: {
   tasks: Task[];
   addTask: (t: { date: string; title: string; time: string | null; importance: Importance }) => void;
   toggleTask: (id: number) => void;
-  doodleMap: Record<string, { id: number; iconId: string; label: string }[]>;
+  doodleMap: Record<string, Doodle[]>;
+  dayMap: Record<string, DayMeta>;
+  updateShade: (date: string, shade:string)=> void;
   addDoodle: (date: string, iconId: string, label: string) => void;
   removeDoodle: (id: number) => void;
 }) {
@@ -852,7 +859,7 @@ export default function DoMEApp() {
   const { tasks, addTask, toggleTask } = useTasks();
   const { doodleMap, addDoodle, removeDoodle } = useDoodles();
   const [active, setActive] = useState("today");
-  const [mood, setMood] = useState(3); // session-only for now — see README for how to persist it
+  const {dayMap, updateShade, updateMood} = useDays();
 
   return (
     <div style={{
@@ -866,11 +873,12 @@ export default function DoMEApp() {
       `}</style>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         <TabBar active={active} setActive={setActive} />
-        {active === "today" && <TodayView tasks={tasks} addTask={addTask} toggleTask={toggleTask} mood={mood} setMood={setMood} />}
+        {active === "today" && <TodayView tasks={tasks} addTask={addTask} toggleTask={toggleTask} dayMap={dayMap} updateMood = {updateMood} />}
         {active === "calendar" && (
           <CalendarView
             tasks={tasks} addTask={addTask} toggleTask={toggleTask}
             doodleMap={doodleMap} addDoodle={addDoodle} removeDoodle={removeDoodle}
+            dayMap={dayMap} updateShade={updateShade}
           />
         )}
         {active === "focus" && <FocusView tasks={tasks} toggleTask={toggleTask} />}

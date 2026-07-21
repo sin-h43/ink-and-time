@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, Task, Importance } from "./db";
 import { makeUid } from "./id";
@@ -14,7 +14,6 @@ const offsetDate = (days: number, base = new Date()) => {
 };
 
 // First-run demo data so the app isn't an empty shell on a fresh install.
-// Runs once — if the tasks table already has rows, this is a no-op.
 async function seedIfEmpty() {
   const count = await db.tasks.count();
   if (count > 0) return;
@@ -25,7 +24,7 @@ async function seedIfEmpty() {
 
   [-6, -5, -4, -3, -2, -1].forEach((off, idx) => {
     const date = offsetDate(off);
-    const count = idx === 2 ? 0 : 2 + (idx % 3); // one rest day, on purpose
+    const count = idx === 2 ? 0 : 2 + (idx % 3);
     for (let i = 0; i < count; i++) {
       rows.push({
         uid: makeUid(),
@@ -36,18 +35,19 @@ async function seedIfEmpty() {
         importance: importances[(idx + i) % 3],
         updatedAt: Date.now(),
         synced: false,
+        isDeleted: false, // Added for v2 schema
       });
     }
   });
 
   const today = fmtDate(new Date());
   rows.push(
-    { uid: makeUid(), date: today, title: "Morning walk", time: "07:00", completed: true, importance: "low", updatedAt: Date.now(), synced: false },
-    { uid: makeUid(), date: today, title: "Deep work block", time: "09:30", completed: false, importance: "high", updatedAt: Date.now(), synced: false },
-    { uid: makeUid(), date: today, title: "Lunch with Dana", time: "12:30", completed: false, importance: "medium", updatedAt: Date.now(), synced: false },
-    { uid: makeUid(), date: today, title: "Read 20 pages", time: null, completed: false, importance: "low", updatedAt: Date.now(), synced: false },
-    { uid: makeUid(), date: today, title: "Water the plants", time: null, completed: true, importance: "low", updatedAt: Date.now(), synced: false },
-    { uid: makeUid(), date: today, title: "Evening journal", time: "21:00", completed: false, importance: "medium", updatedAt: Date.now(), synced: false }
+    { uid: makeUid(), date: today, title: "Morning walk", time: "07:00", completed: true, importance: "low", updatedAt: Date.now(), synced: false, isDeleted: false },
+    { uid: makeUid(), date: today, title: "Deep work block", time: "09:30", completed: false, importance: "high", updatedAt: Date.now(), synced: false, isDeleted: false },
+    { uid: makeUid(), date: today, title: "Lunch with Dana", time: "12:30", completed: false, importance: "medium", updatedAt: Date.now(), synced: false, isDeleted: false },
+    { uid: makeUid(), date: today, title: "Read 20 pages", time: null, completed: false, importance: "low", updatedAt: Date.now(), synced: false, isDeleted: false },
+    { uid: makeUid(), date: today, title: "Water the plants", time: null, completed: true, importance: "low", updatedAt: Date.now(), synced: false, isDeleted: false },
+    { uid: makeUid(), date: today, title: "Evening journal", time: "21:00", completed: false, importance: "medium", updatedAt: Date.now(), synced: false, isDeleted: false }
   );
 
   await db.tasks.bulkAdd(rows as Task[]);
@@ -58,12 +58,14 @@ export function useTasks() {
     seedIfEmpty();
   }, []);
 
-  // Live-reactive: any write below re-renders every component using this hook, instantly.
-  const tasks = useLiveQuery(() => db.tasks.orderBy("date").toArray(), [], []) ?? [];
+  // Live-reactive: filters out soft-deleted tasks so they vanish from the UI instantly
+  const tasks = useLiveQuery(
+    () => db.tasks.orderBy("date").filter(t => !t.isDeleted).toArray(),
+    [],
+    []
+  ) ?? [];
 
   const addTask = async (input: { date: string; title: string; time: string | null; importance: Importance }) => {
-    // Optimistic, zero-latency write — this resolves against IndexedDB directly,
-    // no network round trip. Background sync (lib/supabaseSync.ts) picks it up later.
     await db.tasks.add({
       uid: makeUid(),
       date: input.date,
@@ -73,6 +75,7 @@ export function useTasks() {
       importance: input.importance,
       updatedAt: Date.now(),
       synced: false,
+      isDeleted: false, // Added for v2 schema
     });
   };
 
@@ -82,5 +85,12 @@ export function useTasks() {
     await db.tasks.update(id, { completed: !t.completed, updatedAt: Date.now(), synced: false });
   };
 
-  return { tasks, addTask, toggleTask };
+  // New function: Soft delete for Supabase sync compatibility
+  const removeTask = async (id: number) => {
+    const t = await db.tasks.get(id);
+    if (!t) return;
+    await db.tasks.update(id, { isDeleted: true, updatedAt: Date.now(), synced: false });
+  };
+
+  return { tasks, addTask, toggleTask, removeTask };
 }
