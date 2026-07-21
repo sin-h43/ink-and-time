@@ -438,7 +438,7 @@ function TodayView({
 
 /* ------------------------------ Day dialog (event + doodle) ------------------ */
 function DayDialog({
-  date, dayTasks, onToggleTask, onAddEvent, doodles, onAddDoodle, onRemoveDoodle, onClose,
+  date, dayTasks, onToggleTask, onAddEvent, doodles, onAddDoodle, onRemoveDoodle, onClose, currentShade, onUpdateShade,
 }: {
   date: string;
   dayTasks: Task[];
@@ -448,6 +448,9 @@ function DayDialog({
   onAddDoodle: (iconId: string, label: string) => void;
   onRemoveDoodle: (id: number) => void;
   onClose: () => void;
+  currentShade: string;
+   onUpdateShade: (shadeId:string)=>void;
+
 }) {
   const [title, setTitle] = useState("");
   const [time, setTime] = useState("");
@@ -496,6 +499,22 @@ function DayDialog({
           </button>
         </div>
 
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontFamily: HAND, fontSize: 14, color: C.inkSoft, marginBottom: 8 }}>Day Color</div>
+          <div style={{ display: "flex", gap: 10 }}>
+            {BOX_SHADES.map((s) => (
+              <button 
+                key={s.id} 
+                onClick={() => onUpdateShade(s.id)} 
+                title={s.label}
+                style={{
+                  width: 24, height: 24, borderRadius: "50%", background: s.color, cursor: "pointer",
+                  border: currentShade === s.id ? `2.5px solid ${C.navy}` : `1.5px solid ${C.lineSoft}`, padding: 0,
+              }} />
+            ))}
+          </div>
+        </div>
+
         {doodles.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
             {doodles.map((d) => {
@@ -540,7 +559,7 @@ function CalendarView({
 }) {
   const [monthOffset, setMonthOffset] = useState(0);
   const [openDate, setOpenDate] = useState<string | null>(null);
-  const [boxShade, setBoxShade] = useState("paper");
+  const [shadeMap, setShadeMap] = useState<Record<string, string>>({});
   const base = new Date(); base.setDate(1); base.setMonth(base.getMonth() + monthOffset);
   const year = base.getFullYear(), month = base.getMonth();
   const firstWeekday = new Date(year, month, 1).getDay();
@@ -555,8 +574,6 @@ function CalendarView({
   const cells: (number | null)[] = [];
   for (let i = 0; i < firstWeekday; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-
-  const boxColor = BOX_SHADES.find((s) => s.id === boxShade)!.color;
 
   return (
     <div style={{ position: "relative" }}>
@@ -573,15 +590,6 @@ function CalendarView({
         }}>
           <Plus size={15} /> Add / import event
         </button>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontFamily: HAND, fontSize: 13, color: C.inkSoft }}>Box shade</span>
-          {BOX_SHADES.map((s) => (
-            <button key={s.id} onClick={() => setBoxShade(s.id)} title={s.label} aria-label={s.label} style={{
-              width: 18, height: 18, borderRadius: "50%", background: s.color, cursor: "pointer",
-              border: boxShade === s.id ? `2px solid ${C.navy}` : `1.5px solid ${C.lineSoft}`, padding: 0,
-            }} />
-          ))}
-        </div>
       </div>
       <div style={{overflowX: "auto", paddingBottom:8}}>
         <div style={{minWidth: 400}}>
@@ -592,6 +600,8 @@ function CalendarView({
         {cells.map((d, i) => {
           if (d === null) return <div key={i} style={{minHeight:78, minWidth:48}} />;
           const dateStr = `${year}-${pad(month + 1)}-${pad(d)}`;
+          const dayShadeId = shadeMap[dateStr] || 'paper';
+          const boxColor = BOX_SHADES.find((s)=>s.id=== dayShadeId)!.color;
           const isToday = dateStr === fmtDate(new Date());
           const dayTasks = (byDate[dateStr] || []).slice(0, 3);
           const doodles = (doodleMap[dateStr] || []).slice(0, 4);
@@ -633,6 +643,8 @@ function CalendarView({
           onAddDoodle={(iconId, label) => addDoodle(openDate, iconId, label)}
           onRemoveDoodle={removeDoodle}
           onClose={() => setOpenDate(null)}
+          currentShade = {shadeMap[openDate]|| "paper"}
+          onUpdateShade = {(shadeId)=> setShadeMap(prev => ({...prev, [openDate]:shadeId}))}
         />
       )}
     </div>
