@@ -420,7 +420,7 @@ function TodayView({
         </div>
       </div>
 
-      <div style={{ paddingTop: 4, paddingBottom: 22, borderTop: `1px dashed ${C.line}`, display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
+      <div style={{ paddingTop: 4, paddingBottom: 8, borderTop: `1px dashed ${C.line}`, display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
         <span style={{ fontFamily: HAND, fontSize: 16, color: C.inkSoft }}>Today's mood</span>
         <div style={{ display: "flex", gap: 4 }}>
           {[1, 2, 3, 4, 5].map((n) => (
@@ -431,7 +431,7 @@ function TodayView({
         </div>
       </div>
 
-      <div style={{ paddingTop: 18, borderTop: `1px dashed ${C.line}` }}>
+      <div style={{ paddingTop: 12, borderTop: `1px dashed ${C.line}` }}>
         <YearHeatmap tasks={tasks} />
       </div>
     </div>
