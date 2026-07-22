@@ -45,6 +45,8 @@ const YOUTUBE_STREAMS = [
   { id: "brown", label: "Brown Noise", url: "https://www.youtube.com/watch?v=RqzGzwTY-6w" },
   { id: "space", label: "Deep Space", url: "https://www.youtube.com/watch?v=1s98E01T8kY" },]
 
+type StreamId = (typeof YOUTUBE_STREAMS)[number]["id"];
+
 const HAND = "'Patrick Hand', cursive";
 const DISPLAY = "'Caveat', cursive";
 // react-draggable 4.7's declaration exposes its optional runtime props as required
@@ -742,7 +744,17 @@ function useNoise() {
   return { playingId, play, stop };
 }
 
-function FocusView({ tasks, toggleTask }: { tasks: Task[]; toggleTask: (id: number) => void }) {
+function FocusView({
+  tasks,
+  toggleTask,
+  activeStream,
+  onStreamSelect,
+}: {
+  tasks: Task[];
+  toggleTask: (id: number) => void;
+  activeStream: StreamId | null;
+  onStreamSelect: (streamId: StreamId) => void;
+}) {
   const today = fmtDate(new Date());
   // Everything open today — scheduled AND to-do — so nothing gets left out of Focus mode.
   const openToday = tasks.filter((t) => t.date === today && !t.completed);
@@ -764,8 +776,6 @@ function FocusView({ tasks, toggleTask }: { tasks: Task[]; toggleTask: (id: numb
   const [remaining, setRemaining] = useState(durationSec);
   const [running, setRunning] = useState(false);
   const endTimeRef = useRef<number | null>(null);
-  const [activeStream, setActiveStream] = useState<String | null >(null);
-  const currentVideoUrl = YOUTUBE_STREAMS.find(s => s.id === activeStream)?.url;
 
   useEffect(() => { if (!running) setRemaining(durationSec); }, [durationSec, running]);
   useEffect(() => {
@@ -794,7 +804,18 @@ function FocusView({ tasks, toggleTask }: { tasks: Task[]; toggleTask: (id: numb
   const FocusTaskButton = ({ t }: { t: Task }) => {
     const Icon = getSmartIcon(t.title);
     return (
-      <button onClick={() => setFocusTaskId(t.id!)} style={{
+      <div
+        role="button"
+        tabIndex={0}
+        aria-pressed={focusTaskId === t.id}
+        onClick={() => setFocusTaskId(t.id!)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setFocusTaskId(t.id!);
+          }
+        }}
+        style={{
         textAlign: "left", padding: "9px 12px", borderRadius: 8, cursor: "pointer",
         border: `1.5px solid ${focusTaskId === t.id ? C.pink2 : C.lineSoft}`,
         background: focusTaskId === t.id ? C.pink1 : C.paper, fontFamily: HAND, fontSize: 15, color: C.ink,
@@ -805,7 +826,7 @@ function FocusView({ tasks, toggleTask }: { tasks: Task[]; toggleTask: (id: numb
         {t.time && <span style={{ fontSize: 12, color: C.navySoft, flexShrink: 0 }}>{to12h(t.time)}</span>}
         {Icon && <Icon size={15} color={C.navySoft} style={{ flexShrink: 0 }} />}
         <span style={{ flex: 1 }}>{t.title}</span>
-      </button>
+      </div>
     );
   };
 
@@ -887,7 +908,7 @@ function FocusView({ tasks, toggleTask }: { tasks: Task[]; toggleTask: (id: numb
       return (
         <button 
           key={stream.id} 
-          onClick={() => setActiveStream(active ? null : stream.id)} 
+          onClick={() => onStreamSelect(stream.id)} 
           style={{
             flexShrink: 0, // Forces the container to scroll instead of squashing the buttons
             whiteSpace: "nowrap", // Prevents the text from stacking
@@ -906,47 +927,56 @@ function FocusView({ tasks, toggleTask }: { tasks: Task[]; toggleTask: (id: numb
     })}
   </div>
 </div>
-      {/* The Floating Polaroid */}
-{activeStream && currentVideoUrl && (
-  <DraggableContainer handle=".drag-handle" bounds="parent" defaultPosition={{ x: 0, y: -200 }} disabled={false}>
-    <div style={{
-      position: "absolute", bottom: 20, right: 20, width: 280, 
-      background: C.paper, borderRadius: 12, border: `2px solid ${C.line}`, 
-      boxShadow: "0 8px 24px rgba(46,43,36,0.12)", zIndex: 50, overflow: "hidden"
-    }}>
-      {/* Top Drag Bar */}
-      <div className="drag-handle" style={{ 
-        display: "flex", justifyContent: "space-between", alignItems: "center", 
-        padding: "8px 12px", background: C.pink1, cursor: "grab", borderBottom: `1.5px solid ${C.line}` 
+    </div>
+  );
+}
+
+function AmbientStreamPlayer({
+  activeStream,
+  isPlaying,
+  onPlayingChange,
+  onClose,
+}: {
+  activeStream: StreamId | null;
+  isPlaying: boolean;
+  onPlayingChange: (isPlaying: boolean) => void;
+  onClose: () => void;
+}) {
+  const stream = YOUTUBE_STREAMS.find((item) => item.id === activeStream);
+  if (!stream) return null;
+
+  return (
+    <DraggableContainer handle=".drag-handle" bounds="parent" defaultPosition={{ x: 0, y: 0 }}>
+      <div style={{
+        position: "absolute", bottom: 20, right: 20, width: 280,
+        background: C.paper, borderRadius: 12, border: `2px solid ${C.line}`,
+        boxShadow: "0 8px 24px rgba(46,43,36,0.12)", zIndex: 50, overflow: "hidden"
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <GripHorizontal size={14} color={C.inkSoft} />
-          <span style={{ fontFamily: HAND, fontSize: 14, color: C.ink }}>Ambient Stream</span>
+        <div className="drag-handle" style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          padding: "8px 12px", background: C.pink1, cursor: "grab", borderBottom: `1.5px solid ${C.line}`
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <GripHorizontal size={14} color={C.inkSoft} />
+            <span style={{ fontFamily: HAND, fontSize: 14, color: C.ink }}>{stream.label}</span>
+          </div>
+          <button onClick={onClose} aria-label="Close video" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
+            <X size={16} color={C.ink} />
+          </button>
         </div>
-        <button 
-          onClick={() => setActiveStream(null)} 
-          aria-label="Close video"
-          style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}
-        >
-          <X size={16} color={C.ink} />
-        </button>
+        <div style={{ background: C.ink, height: 157 }}>
+          <ReactPlayer
+            src={stream.url}
+            playing={isPlaying}
+            width="100%"
+            height="100%"
+            controls
+            onPlay={() => onPlayingChange(true)}
+            onPause={() => onPlayingChange(false)}
+          />
+        </div>
       </div>
-      
-      {/* YouTube Player */}
-      <div style={{ background: C.ink, height: 157 }}>
-        <ReactPlayer 
-          src={currentVideoUrl}
-          playing={running} // Automatically pauses when the Pomodoro timer pauses
-          width="100%" 
-          height="100%" 
-          controls={true}
-          config={{ youtube: { disablekb: 1 } }}
-        />
-      </div>
-    </div>
-  </DraggableContainer>
-)}
-    </div>
+    </DraggableContainer>
   );
 }
 
@@ -955,7 +985,23 @@ export default function DoMEApp() {
   const { tasks, addTask, toggleTask, removeTask } = useTasks();
   const { doodleMap, addDoodle, removeDoodle } = useDoodles();
   const [active, setActive] = useState("today");
+  const [activeStream, setActiveStream] = useState<StreamId | null>(null);
+  const [isStreamPlaying, setIsStreamPlaying] = useState(false);
   const {dayMap, updateShade, updateMood} = useDays();
+
+  const selectStream = (streamId: StreamId) => {
+    if (activeStream === streamId) {
+      setIsStreamPlaying((playing) => !playing);
+      return;
+    }
+    setActiveStream(streamId);
+    setIsStreamPlaying(true);
+  };
+
+  const closeStream = () => {
+    setIsStreamPlaying(false);
+    setActiveStream(null);
+  };
 
   return (
     <div style={{
@@ -985,8 +1031,21 @@ export default function DoMEApp() {
             dayMap={dayMap} updateShade={updateShade}
           />
         )}
-        {active === "focus" && <FocusView tasks={tasks} toggleTask={toggleTask} />}
+        {active === "focus" && (
+          <FocusView
+            tasks={tasks}
+            toggleTask={toggleTask}
+            activeStream={activeStream}
+            onStreamSelect={selectStream}
+          />
+        )}
       </div>
+      <AmbientStreamPlayer
+        activeStream={activeStream}
+        isPlaying={isStreamPlaying}
+        onPlayingChange={setIsStreamPlaying}
+        onClose={closeStream}
+      />
     </div>
   );
 }
