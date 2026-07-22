@@ -36,9 +36,14 @@ const C = {
 };
 
 const YOUTUBE_STREAMS = [
-  {id: "lofi", label: "Lo-fi Girl", url: "https://www.youtube.com/watch?v=jfKfPfyJRdk" },
-  {id: "coffee", label: "Jazz Cafe", url: "https://www.youtube.com/watch?v=c0_ejQQcrwI" },
-]
+  {id: "lofi", label: "Lo-fi ", url: "https://youtu.be/l-2hOKIrIyI?si=YbT_AmuEbjS2capt" },
+{ id: "synth", label: "Synthwave", url: "https://www.youtube.com/watch?v=4xDzrUhVKVA" },
+  { id: "coffee", label: "Jazz Cafe", url: "https://www.youtube.com/watch?v=c0_ejQQcrwI" },
+  { id: "ghibli", label: "Studio Ghibli", url: "https://www.youtube.com/watch?v=WJ3-F02-F_Y" },
+  { id: "rain", label: "City Rain", url: "https://www.youtube.com/watch?v=mPZkdNFkNps" },
+  { id: "fireplace", label: "Fireplace", url: "https://www.youtube.com/watch?v=L_LUpnjgPso" },
+  { id: "brown", label: "Brown Noise", url: "https://www.youtube.com/watch?v=RqzGzwTY-6w" },
+  { id: "space", label: "Deep Space", url: "https://www.youtube.com/watch?v=1s98E01T8kY" },]
 
 const HAND = "'Patrick Hand', cursive";
 const DISPLAY = "'Caveat', cursive";
@@ -692,11 +697,6 @@ function CalendarView({
 }
 
 /* --------------------------------- Focus view -------------------------------- */
-const AMBIENTS: { id: string; label: string; icon: LucideIcon; kind: "filtered" | "brown" | null }[] = [
-  { id: "rain", label: "Rain", icon: CloudRain, kind: "filtered" },
-  { id: "brown", label: "Brown noise", icon: Waves, kind: "brown" },
-  { id: "lofi", label: "Lo-fi", icon: Music2, kind: null },
-];
 function useNoise() {
   const ctxRef = useRef<AudioContext | null>(null);
   const nodesRef = useRef<{ src: AudioBufferSourceNode; gain: GainNode } | null>(null);
@@ -870,7 +870,7 @@ function FocusView({ tasks, toggleTask }: { tasks: Task[]; toggleTask: (id: numb
 
 <div style={{ width: "100%", maxWidth: 360 }}>
   <SectionLabel text="Ambient Streams" />
-  <div style={{ display: "flex", gap: 8 }}>
+  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
     {YOUTUBE_STREAMS.map((stream) => {
       const active = activeStream === stream.id;
       return (
@@ -916,13 +916,13 @@ function FocusView({ tasks, toggleTask }: { tasks: Task[]; toggleTask: (id: numb
       </div>
       
       {/* YouTube Player */}
-      <div style={{ background: C.ink, height: 157, pointerEvents: "none" }}>
+      <div style={{ background: C.ink, height: 157 }}>
         <ReactPlayer 
           src={currentVideoUrl}
           playing={running} // Automatically pauses when the Pomodoro timer pauses
           width="100%" 
           height="100%" 
-          controls={false}
+          controls={true}
           config={{ youtube: { disablekb: 1 } }}
         />
       </div>
