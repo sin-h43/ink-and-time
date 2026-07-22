@@ -605,7 +605,6 @@ function CalendarView({
 }) {
   const [monthOffset, setMonthOffset] = useState(0);
   const [openDate, setOpenDate] = useState<string | null>(null);
-  const [shadeMap, setShadeMap] = useState<Record<string, string>>({});
   const base = new Date(); base.setDate(1); base.setMonth(base.getMonth() + monthOffset);
   const year = base.getFullYear(), month = base.getMonth();
   const firstWeekday = new Date(year, month, 1).getDay();
@@ -646,7 +645,7 @@ function CalendarView({
         {cells.map((d, i) => {
           if (d === null) return <div key={i} style={{minHeight:78, minWidth:48}} />;
           const dateStr = `${year}-${pad(month + 1)}-${pad(d)}`;
-          const dayShadeId = shadeMap[dateStr] || 'paper';
+          const dayShadeId = dayMap[dateStr]?.shadeId || 'paper';
           const boxColor = BOX_SHADES.find((s)=>s.id=== dayShadeId)!.color;
           const isToday = dateStr === fmtDate(new Date());
           const dayTasks = (byDate[dateStr] || []).slice(0, 3);
@@ -690,9 +689,8 @@ function CalendarView({
           onAddDoodle={(iconId, label) => addDoodle(openDate, iconId, label)}
           onRemoveDoodle={removeDoodle}
           onClose={() => setOpenDate(null)}
-          currentShade = {shadeMap[openDate]|| "paper"}
-          onUpdateShade = {(shadeId)=> setShadeMap(prev => ({...prev, [openDate]:shadeId}))}
-        />
+          currentShade = {dayMap[openDate]?.shadeId|| "paper"}
+          onUpdateShade={(shadeId) => updateShade(openDate, shadeId)}        />
       )}
     </div>
   );
