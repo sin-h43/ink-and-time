@@ -870,7 +870,18 @@ function FocusView({ tasks, toggleTask }: { tasks: Task[]; toggleTask: (id: numb
 
 <div style={{ width: "100%", maxWidth: 360 }}>
   <SectionLabel text="Ambient Streams" />
-  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+  <div style={{ 
+    display: "flex", 
+    gap: 8, 
+    overflowX: "auto", 
+    paddingBottom: 8, // Adds breathing room for the scrollbar
+    scrollbarWidth: "none" // Hides scrollbar on Firefox for a cleaner UX
+  }}>
+    {/* Hides scrollbar on WebKit (Chrome/Safari) while keeping it scrollable */}
+    <style>{`
+      div::-webkit-scrollbar { display: none; }
+    `}</style>
+    
     {YOUTUBE_STREAMS.map((stream) => {
       const active = activeStream === stream.id;
       return (
@@ -878,9 +889,15 @@ function FocusView({ tasks, toggleTask }: { tasks: Task[]; toggleTask: (id: numb
           key={stream.id} 
           onClick={() => setActiveStream(active ? null : stream.id)} 
           style={{
-            flex: 1, padding: "10px 6px", borderRadius: 10, cursor: "pointer",
+            flexShrink: 0, // Forces the container to scroll instead of squashing the buttons
+            whiteSpace: "nowrap", // Prevents the text from stacking
+            padding: "10px 14px", 
+            borderRadius: 10, 
+            cursor: "pointer",
             border: `1.5px solid ${active ? C.navy : C.lineSoft}`, 
-            background: active ? C.pink1 : C.paper, fontFamily: HAND, fontSize: 13,
+            background: active ? C.pink1 : C.paper, 
+            fontFamily: HAND, 
+            fontSize: 13,
             color: active ? C.navy : C.ink
         }}>
           {stream.label}
