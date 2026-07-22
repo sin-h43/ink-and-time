@@ -1,17 +1,19 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, type ComponentType, type ReactNode } from "react";
 import {
   Plus, Star, Play, Pause, RotateCcw, CloudRain, Waves, Music2, X, Clock,
   ChevronLeft, ChevronRight, Sparkles, AlarmClock, Coffee, BookOpen,
   Dumbbell, Milk, Laptop, UtensilsCrossed, Film, Camera, Cat, Apple,
   ShoppingBag, Moon, Mail, Phone, Users, Droplet, Footprints,
-  NotebookPen, Music, Gift, Heart, Bike, ShowerHead, LucideIcon,
+  NotebookPen, Music, Gift, Heart, Bike, ShowerHead, LucideIcon,GripHorizontal
 } from "lucide-react";
 import { Task, Importance,Doodle, DayMeta } from "@/lib/db";
 import { useTasks } from "@/lib/useTasks";
 import { useDoodles } from "@/lib/useDoodles";
 import { useDays } from "@/lib/useDays";
+import ReactPlayer from "react-player";
+import Draggable, { type DraggableProps } from "react-draggable";
 
 
 /* ---------------------------------- Tokens --------------------------------- */
@@ -33,8 +35,16 @@ const C = {
   gold: "#C69A55",
 };
 
+const YOUTUBE_STREAMS = [
+  {id: "lofi", label: "Lo-fi Girl", url: "https://www.youtube.com/watch?v=jfKfPfyJRdk" },
+  {id: "coffee", label: "Jazz Cafe", url: "https://www.youtube.com/watch?v=c0_ejQQcrwI" },
+]
+
 const HAND = "'Patrick Hand', cursive";
 const DISPLAY = "'Caveat', cursive";
+// react-draggable 4.7's declaration exposes its optional runtime props as required
+// in JSX. This preserves the library's actual optional-prop behavior.
+const DraggableContainer = Draggable as ComponentType<Partial<DraggableProps> & { children?: ReactNode }>;
 
 /* -------------------------------- Importance -------------------------------- */
 const IMPORTANCE: { id: Importance; label: string; color: string }[] = [
@@ -754,6 +764,8 @@ function FocusView({ tasks, toggleTask }: { tasks: Task[]; toggleTask: (id: numb
   const [remaining, setRemaining] = useState(durationSec);
   const [running, setRunning] = useState(false);
   const endTimeRef = useRef<number | null>(null);
+  const [activeStream, setActiveStream] = useState<String | null >(null);
+  const currentVideoUrl = YOUTUBE_STREAMS.find(s => s.id === activeStream)?.url;
 
   useEffect(() => { if (!running) setRemaining(durationSec); }, [durationSec, running]);
   useEffect(() => {
@@ -856,23 +868,67 @@ function FocusView({ tasks, toggleTask }: { tasks: Task[]; toggleTask: (id: numb
         )}
       </div>
 
-      <div style={{ width: "100%", maxWidth: 360 }}>
-        <SectionLabel text="Ambient sound" />
-        <div style={{ display: "flex", gap: 8 }}>
-          {AMBIENTS.map((a) => {
-            const Icon = a.icon; const active = playingId === a.id;
-            return (
-              <button key={a.id} onClick={() => play(a)} title={a.kind ? "" : "Bundle your own track — no local synth for this one"} style={{
-                flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "10px 6px",
-                borderRadius: 10, cursor: a.kind ? "pointer" : "not-allowed", opacity: a.kind ? 1 : 0.5,
-                border: `1.5px solid ${active ? C.navy : C.lineSoft}`, background: active ? C.pink1 : C.paper, fontFamily: HAND, fontSize: 13,
-              }}>
-                <Icon size={18} color={active ? C.navy : C.inkSoft} /> {a.label}
-              </button>
-            );
-          })}
+<div style={{ width: "100%", maxWidth: 360 }}>
+  <SectionLabel text="Ambient Streams" />
+  <div style={{ display: "flex", gap: 8 }}>
+    {YOUTUBE_STREAMS.map((stream) => {
+      const active = activeStream === stream.id;
+      return (
+        <button 
+          key={stream.id} 
+          onClick={() => setActiveStream(active ? null : stream.id)} 
+          style={{
+            flex: 1, padding: "10px 6px", borderRadius: 10, cursor: "pointer",
+            border: `1.5px solid ${active ? C.navy : C.lineSoft}`, 
+            background: active ? C.pink1 : C.paper, fontFamily: HAND, fontSize: 13,
+            color: active ? C.navy : C.ink
+        }}>
+          {stream.label}
+        </button>
+      );
+    })}
+  </div>
+</div>
+      {/* The Floating Polaroid */}
+{activeStream && currentVideoUrl && (
+  <DraggableContainer handle=".drag-handle" bounds="parent" defaultPosition={{ x: 0, y: -200 }} disabled={false}>
+    <div style={{
+      position: "absolute", bottom: 20, right: 20, width: 280, 
+      background: C.paper, borderRadius: 12, border: `2px solid ${C.line}`, 
+      boxShadow: "0 8px 24px rgba(46,43,36,0.12)", zIndex: 50, overflow: "hidden"
+    }}>
+      {/* Top Drag Bar */}
+      <div className="drag-handle" style={{ 
+        display: "flex", justifyContent: "space-between", alignItems: "center", 
+        padding: "8px 12px", background: C.pink1, cursor: "grab", borderBottom: `1.5px solid ${C.line}` 
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <GripHorizontal size={14} color={C.inkSoft} />
+          <span style={{ fontFamily: HAND, fontSize: 14, color: C.ink }}>Ambient Stream</span>
         </div>
+        <button 
+          onClick={() => setActiveStream(null)} 
+          aria-label="Close video"
+          style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}
+        >
+          <X size={16} color={C.ink} />
+        </button>
       </div>
+      
+      {/* YouTube Player */}
+      <div style={{ background: C.ink, height: 157, pointerEvents: "none" }}>
+        <ReactPlayer 
+          src={currentVideoUrl}
+          playing={running} // Automatically pauses when the Pomodoro timer pauses
+          width="100%" 
+          height="100%" 
+          controls={false}
+          config={{ youtube: { disablekb: 1 } }}
+        />
+      </div>
+    </div>
+  </DraggableContainer>
+)}
     </div>
   );
 }
