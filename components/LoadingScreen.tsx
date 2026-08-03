@@ -1,238 +1,166 @@
-"use client";
+import { useEffect, useState } from "react";
 
-import { useEffect, useRef, useState } from "react";
-
-/**
- * App tokens (mirrors `C`/HAND/DISPLAY in doMEApp.tsx)
- * Re-mapped to support the exact pixel-art styling from the references.
- */
+/* ---------------------------------- Tokens ----------------------------------
+   Pulled 1:1 from doMEApp.tsx — keep these in sync if the palette ever shifts. */
 const C = {
-  paper: "#FFFFFF", // Strict white for the inner bar
   page: "#FEFCF6",
-  ink: "#000000",   // Pure black for pixel outlines
+  ink: "#2E2B24",
+  inkSoft: "#6B6558",
+  navy: "#2B3A5C",
+  line: "#DDD5C2",
+  lineSoft: "#EBE4D4",
   gridLine: "rgba(190, 175, 140, 0.16)",
-  // Neon pinks for the exact dithered loading bar fill
-  pinkDither1: "#FF007F", 
-  pinkDither2: "#FF66B2",
+  pink0: "#F3D9DD",
+  pink1: "#E8AEBB",
+  pink2: "#D97690",
+  pink3: "#B54F70",
+  pink4: "#b53a62",
 };
 
-/* --------------------------------------------------------------------------
- * Pixel cat — Accurately mapped to the Pop Cat meme references.
- * C: Cream, T: Tan (left), B: Brown (right), P: Ear pink, M: Closed mouth pink,
- * D: Open mouth dark red, R: Open mouth tongue red, K: Black outline
- * ------------------------------------------------------------------------*/
-const CAT_PALETTE: Record<string, string> = {
-  K: "#000000", 
-  C: "#F3E1C6", 
-  T: "#DFA777", 
-  B: "#856046", 
-  P: "#F7A5B7", 
-  M: "#F5749B", 
-  E: "#333333", 
-  D: "#5A0616", 
-  R: "#CC323A", 
-};
+const HAND = "'Patrick Hand', cursive";
+const DISPLAY = "'Caveat', cursive";
 
-// 26x24 Grid optimized for the exact closed-mouth smug expression
-const CAT_CLOSED = [
-  ".......KKK..............",
-  "......KPPPK........KK...",
-  ".....KPPPPPK......KBK...",
-  "....KTPPPPPK.....KBBK...",
-  "...KTTPPPPPK...KKBBBK...",
-  "..KTTTPPPPPKKKKKBBBBK...",
-  ".KTTTTPPPPKKCCCCCKBBK...",
-  ".KTTTTTPPKCCCCCCCCKBK...",
-  "KTTTTTTTKCCCCCCCCCCK....",
-  "KTTTTTTCKCCCCCCCCCCCK...",
-  "KTTTTTCCCCCCCCCCCCCCK...",
-  "KTTCCTCCCCCCCCCCCCCCK...",
-  "KCCCCCCCCCCCCCCCCCCCK...",
-  "KCCCCCCCCCCCCCCCCCCCK...",
-  "KCCCKKKCCCCCCCKKKCCCK...",
-  "KCCCEEEKCCCCCCEEEKCCK...",
-  "KCCCKKKCCCCCCCKKKCCCK...",
-  "KCCCCCCCCCPPCCCCCCCCK...",
-  "KCCCCCCMMMMMMMMCCCCCK...",
-  "KCCCCCMCCCCCCCMMCCCCK...",
-  "KCCCCCCCCCCCCCCCCCCCK...",
-  ".KCCCCCCCCCCCCCCCCCK....",
-  "..KCCCCCCCCCCCCCCCK.....",
-  "...KKKKKKKKKKKKKKK......",
+const CAPTIONS = [
+  "turning the page…",
+  "sharpening the pencil…",
+  "finding today's line…",
+  "dotting the i's…",
 ];
 
-// Open mouth frame — swaps the lower face for the massive O-shape
-const CAT_OPEN = [
-  ".......KKK..............",
-  "......KPPPK........KK...",
-  ".....KPPPPPK......KBK...",
-  "....KTPPPPPK.....KBBK...",
-  "...KTTPPPPPK...KKBBBK...",
-  "..KTTTPPPPPKKKKKBBBBK...",
-  ".KTTTTPPPPKKCCCCCKBBK...",
-  ".KTTTTTPPKCCCCCCCCKBK...",
-  "KTTTTTTTKCCCCCCCCCCK....",
-  "KTTTTTTCKCCCCCCCCCCCK...",
-  "KTTTTTCCCCCCCCCCCCCCK...",
-  "KTTCCTCCCCCCCCCCCCCCK...",
-  "KCCCKKKCCCCCCCKKKCCCK...",
-  "KCCCEEEKCCCCCCEEEKCCK...",
-  "KCCCKKKCCCCCCCKKKCCCK...",
-  "KCCCCCCCCCCCCCCCCCCCK...",
-  "KCCCCCKKKKKKKKKCCCCCK...",
-  "KCCCCKDDDDDDDDDKCCCCK...",
-  "KCCCKDDDDDDDDDDDKCCCK...",
-  "KCCCKDDDDDDDDDDDKCCCK...",
-  "KCCCCKRRRRRRRRRKCCCCK...",
-  ".KCCCCKKKKKKKKKCCCCK....",
-  "..KCCCCCCCCCCCCCCCK.....",
-  "...KKKKKKKKKKKKKKK......",
-];
+const PEN_PATH = "M6 22 Q 34 6, 62 22 T 118 22 T 174 22 T 230 22 T 254 22";
 
-const CELL = 3;
-const GRID_W = 24;
-
-function PixelCat({ chewing }: { chewing: boolean }) {
-  const grid = chewing ? CAT_OPEN : CAT_CLOSED;
-  const h = grid.length;
-  return (
-    <svg 
-      width={GRID_W * CELL} 
-      height={h * CELL} 
-      viewBox={`0 0 ${GRID_W * CELL} ${h * CELL}`} 
-      shapeRendering="crispEdges"
-      style={{ imageRendering: "pixelated" }}
-    >
-      {grid.map((row, r) =>
-        row.split("").map((ch, c) => {
-          if (ch === ".") return null;
-          return <rect key={`${r}-${c}`} x={c * CELL} y={r * CELL} width={CELL} height={CELL} fill={CAT_PALETTE[ch]} />;
-        })
-      )}
-    </svg>
-  );
-}
-
-/* --------------------------------------------------------------------------
- * Pixel loading bar — Rebuilt to map the solid thick black border and 
- * true 2-tone neon dither pattern from the reference image.
- * ------------------------------------------------------------------------*/
-function PixelLoadingBar({ progress }: { progress: number }) {
-  return (
-    <div style={{ position: "relative", width: "100%" }}>
-      <div style={{
-        border: `4px solid ${C.ink}`, 
-        background: C.paper, 
-        height: 28, 
-        width: "100%",
-        position: "relative", 
-        overflow: "hidden",
-        imageRendering: "pixelated",
-      }}>
-        <div style={{
-          height: "100%", 
-          width: `${progress}%`,
-          backgroundColor: C.pinkDither1,
-          backgroundImage: `repeating-conic-gradient(${C.pinkDither2} 0% 25%, ${C.pinkDither1} 0% 50%)`,
-          backgroundSize: "6px 6px", // Tight dither mapping
-          transition: "width 0.15s linear",
-        }} />
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------ Loading screen ---------------------------- */
-export default function LoadingScreen({
-  duration = 2200,
-  progress: controlledProgress,
-  label = "LOADING",
-  onDone,
-}: {
-  duration?: number;
-  progress?: number;
-  label?: string;
-  onDone?: () => void;
-}) {
-  const [autoProgress, setAutoProgress] = useState(0);
-  const [chewing, setChewing] = useState(false);
-  const doneFired = useRef(false);
-  const rafRef = useRef<number | null>(null);
-  const startRef = useRef<number | null>(null);
-
-  const isControlled = controlledProgress !== undefined;
-  const progress = isControlled ? Math.max(0, Math.min(100, controlledProgress as number)) : autoProgress;
+export default function LoadingScreen() {
+  const [captionIndex, setCaptionIndex] = useState(0);
 
   useEffect(() => {
-    if (isControlled) return;
-    startRef.current = null;
-    const tick = (t: number) => {
-      if (startRef.current === null) startRef.current = t;
-      const elapsed = t - startRef.current;
-      const pct = Math.min(100, (elapsed / duration) * 100);
-      setAutoProgress(pct);
-      if (pct < 100) rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [duration, isControlled]);
-
-  // Chewing animation interval mapping
-  useEffect(() => {
-    const id = setInterval(() => setChewing((v) => !v), 220);
+    const id = setInterval(() => {
+      setCaptionIndex((i) => (i + 1) % CAPTIONS.length);
+    }, 1900);
     return () => clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    if (progress >= 100 && !doneFired.current) {
-      doneFired.current = true;
-      const t = setTimeout(() => onDone?.(), 350);
-      return () => clearTimeout(t);
-    }
-  }, [progress, onDone]);
-
-  // Keep the cat's horizontal travel clamped inside the bar trajectory
-  const catLeft = 5 + progress * 0.85;
-
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 999, display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center", gap: 26,
-      background: C.page,
-      backgroundImage: `linear-gradient(${C.gridLine} 1px, transparent 1px), linear-gradient(90deg, ${C.gridLine} 1px, transparent 1px)`,
-      backgroundSize: "22px 22px",
-    }}>
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: C.page,
+        backgroundImage: `linear-gradient(${C.gridLine} 1px, transparent 1px), linear-gradient(90deg, ${C.gridLine} 1px, transparent 1px)`,
+        backgroundSize: "22px 22px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 18,
+        zIndex: 9999,
+      }}
+    >
+      {/* Swap for a local @font-face / next/font in production — this <link> is preview-only */}
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Patrick+Hand&display=swap"
+      />
+
       <style>{`
-        @keyframes lscat-bob { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, -6px); } }
+        @keyframes pen-draw {
+          0%        { stroke-dashoffset: 340; }
+          45%, 55%  { stroke-dashoffset: 0; }
+          100%      { stroke-dashoffset: -340; }
+        }
+        @keyframes nib-move {
+          0%   { offset-distance: 0%;   opacity: 0; }
+          8%   { opacity: 1; }
+          50%  { offset-distance: 100%; opacity: 1; }
+          58%  { opacity: 0; }
+          100% { offset-distance: 100%; opacity: 0; }
+        }
+        @keyframes caption-fade {
+          0%, 100% { opacity: 0; transform: translateY(4px); }
+          15%, 85% { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes dot-breathe {
+          0%, 100% { transform: scale(0.8); opacity: 0.35; }
+          50%      { transform: scale(1.15); opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .doME-pen, .doME-nib, .doME-caption, .doME-dot { animation: none !important; }
+        }
       `}</style>
 
-      <div style={{ position: "relative", width: 280 }}>
-        {/* Cat tracks along the top edge of the bar */}
-        <div style={{
-          position: "absolute", left: `${catLeft}%`, bottom: "100%", marginBottom: -2,
-          animation: "lscat-bob 0.8s ease-in-out infinite", transition: "left 0.15s linear",
-        }}>
-          <PixelCat chewing={chewing} />
-        </div>
+      {/* Wordmark replaces the generic "Loading" text */}
+      <div
+        style={{
+          fontFamily: DISPLAY,
+          fontSize: 44,
+          fontWeight: 700,
+          color: C.navy,
+          letterSpacing: 1,
+        }}
+      >
+        do·me
+      </div>
 
-        <PixelLoadingBar progress={progress} />
+      {/* Signature element: a pen sketching a wavy line, nib tracing along it */}
+      <svg width="260" height="40" viewBox="0 0 260 40" style={{ overflow: "visible" }}>
+        <path
+          className="doME-pen"
+          d={PEN_PATH}
+          fill="none"
+          stroke={C.pink2}
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeDasharray="340"
+          style={{ animation: "pen-draw 2.4s ease-in-out infinite" }}
+        />
+        <circle
+          className="doME-nib"
+          r="4.5"
+          fill={C.pink4}
+          style={{
+            offsetPath: `path('${PEN_PATH}')`,
+            animation: "nib-move 2.4s ease-in-out infinite",
+          }}
+        />
+      </svg>
 
-        {/* Replaced handwritten font with strict pixel typography */}
-        <div style={{
-          marginTop: 18, 
-          textAlign: "center", 
-          fontFamily: "'Press Start 2P', 'Courier New', monospace", 
-          fontSize: 18, 
-          fontWeight: "bold",
-          color: C.ink,
-          textTransform: "uppercase", 
-          letterSpacing: 2,
-          imageRendering: "pixelated",
-        }}>
-          {label} {".".repeat(1 + Math.floor(progress / 34))}
-        </div>
+      {/* Cycling handwritten captions */}
+      <div style={{ height: 22, position: "relative", width: 240, textAlign: "center" }}>
+        {CAPTIONS.map((c, i) => (
+          <span
+            key={c}
+            className="doME-caption"
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              fontFamily: HAND,
+              fontSize: 16,
+              color: C.inkSoft,
+              animation: i === captionIndex ? "caption-fade 1.9s ease-in-out" : "none",
+              opacity: i === captionIndex ? undefined : 0,
+            }}
+          >
+            {c}
+          </span>
+        ))}
+      </div>
+
+      {/* Quiet nod to the pin's dot-loader, kept small and restrained */}
+      <div style={{ display: "flex", gap: 7 }}>
+        {[C.pink1, C.pink2, C.pink3].map((clr, i) => (
+          <span
+            key={i}
+            className="doME-dot"
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: clr,
+              display: "inline-block",
+              animation: `dot-breathe 1.2s ease-in-out ${i * 0.18}s infinite`,
+            }}
+          />
+        ))}
       </div>
     </div>
   );

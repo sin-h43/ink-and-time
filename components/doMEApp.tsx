@@ -941,48 +941,61 @@ function AmbientStreamPlayer({
   onPlayingChange: (isPlaying: boolean) => void;
   onClose: () => void;
 }) {
+  // 1. Create a ref for the draggable container
+  const nodeRef = useRef<HTMLDivElement>(null); 
+
   const stream = YOUTUBE_STREAMS.find((item) => item.id === activeStream);
   if (!stream) return null;
 
   return (
-    // Fixed, full-viewport, pointer-events-none wrapper: this is what makes the player
-    // an actual "floating window" that stays put on screen instead of getting dragged
-    // down with the tall, scrolling app container (its old `position: absolute` parent).
-    // It also gives react-draggable a viewport-sized `bounds="parent"` reference, so the
-    // window can no longer be dragged off-screen or lost below the fold.
-    <div style={{ position: "fixed", inset: 0, zIndex: 50, pointerEvents: "none" }}>
-      <DraggableContainer handle=".drag-handle" bounds="parent" defaultPosition={{ x: 0, y: 0 }}>
-        <div style={{
-          position: "absolute", bottom: 20, right: 20, width: 280, pointerEvents: "auto",
+    <DraggableContainer 
+      nodeRef={nodeRef} // 2. Pass the ref to Draggable
+      handle=".drag-handle" 
+      bounds="parent" 
+      defaultPosition={{ x: 0, y: 0 }}
+    >
+      <div 
+        ref={nodeRef} // 3. Attach the exact same ref to the immediate child
+        style={{
+          position: "absolute", bottom: 20, right: 20, width: 280,
           background: C.paper, borderRadius: 12, border: `2px solid ${C.line}`,
-          boxShadow: "0 8px 24px rgba(46,43,36,0.18)", overflow: "hidden"
+          boxShadow: "0 8px 24px rgba(46,43,36,0.12)", zIndex: 50, overflow: "hidden"
+        }}
+      >
+        <div className="drag-handle" style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          padding: "8px 12px", background: C.pink1, cursor: "grab", borderBottom: `1.5px solid ${C.line}`
         }}>
-          <div className="drag-handle" style={{
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-            padding: "8px 12px", background: C.pink1, cursor: "grab", borderBottom: `1.5px solid ${C.line}`
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <GripHorizontal size={14} color={C.inkSoft} />
-              <span style={{ fontFamily: HAND, fontSize: 14, color: C.ink }}>{stream.label}</span>
-            </div>
-            <button onClick={onClose} aria-label="Close video" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
-              <X size={16} color={C.ink} />
-            </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <GripHorizontal size={14} color={C.inkSoft} />
+            <span style={{ fontFamily: HAND, fontSize: 14, color: C.ink }}>{stream.label}</span>
           </div>
-          <div style={{ background: C.ink, height: 157 }}>
-            <ReactPlayer
-              src={stream.url}
-              playing={isPlaying}
-              width="100%"
-              height="100%"
-              controls
-              onPlay={() => onPlayingChange(true)}
-              onPause={() => onPlayingChange(false)}
-            />
-          </div>
+          <button onClick={onClose} aria-label="Close video" style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0 }}>
+            <X size={16} color={C.ink} />
+          </button>
         </div>
-      </DraggableContainer>
-    </div>
+        <div style={{ background: C.ink, height: 157 }}>
+<ReactPlayer
+  src={stream.url}
+  playing={isPlaying}
+  width="100%"
+  height="100%"
+  controls
+  onPlay={() => onPlayingChange(true)}
+  onPause={() => onPlayingChange(false)}
+  config={
+    {
+      youtube: {
+        playerVars: {
+          origin: typeof window !== "undefined" ? window.location.origin : "http://localhost:3000",
+        },
+      },
+    } as any
+  }
+/>
+        </div>
+      </div>
+    </DraggableContainer>
   );
 }
 
@@ -999,6 +1012,12 @@ export default function DoMEApp() {
   // for a real `progress` prop once useTasks/useDoodles/useDays expose an
   // `isLoading` flag, if you'd rather drive this off actual hydration status.
   const [booting, setBooting] = useState(true);
+  // auto-clear the splash after a short delay to avoid prop mismatch
+  useEffect(() => {
+    if (!booting) return;
+    const t = setTimeout(() => setBooting(false), 500);
+    return () => clearTimeout(t);
+  }, [booting]);
 
   const selectStream = (streamId: StreamId) => {
     if (activeStream === streamId) {
@@ -1015,7 +1034,7 @@ export default function DoMEApp() {
   };
 
   if (booting) {
-    return <LoadingScreen onDone={() => setBooting(false)} />;
+    return <LoadingScreen />;
   }
 
   return (
