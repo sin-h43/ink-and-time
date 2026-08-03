@@ -12,6 +12,7 @@ import { Task, Importance,Doodle, DayMeta } from "@/lib/db";
 import { useTasks } from "@/lib/useTasks";
 import { useDoodles } from "@/lib/useDoodles";
 import { useDays } from "@/lib/useDays";
+import { useBackgroundSync } from "@/lib/useBackgroundSync";
 import ReactPlayer from "react-player";
 import Draggable, { type DraggableProps } from "react-draggable";
 import LoadingScreen from "./LoadingScreen";
@@ -1007,6 +1008,8 @@ export default function DoMEApp() {
   const [activeStream, setActiveStream] = useState<StreamId | null>(null);
   const [isStreamPlaying, setIsStreamPlaying] = useState(false);
   const {dayMap, updateShade, updateMood} = useDays();
+
+  useBackgroundSync();
   // Brief splash while local-first data hydrates from IndexedDB, so the UI
   // doesn't flash empty/partial state on first paint. Swap the fixed `duration`
   // for a real `progress` prop once useTasks/useDoodles/useDays expose an
