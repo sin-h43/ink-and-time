@@ -1,63 +1,59 @@
-import { db } from "./db";
-// import { supabase } from "./supabaseClient"; // Add this when ready
+import { createClient } from '@supabase/supabase-js';
+import { db } from './db';
 
-export async function syncPending() {
-  await pushLocalChanges("tasks");
-  await pushLocalChanges("doodles");
-  await pushLocalChanges("days");
-}
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+export const supabase = createClient(supabaseUrl, supabaseKey);
 
-async function pushLocalChanges(tableName: "tasks" | "doodles" | "days") {
-  const table = db[tableName] as any;
-  
-  // 1. PUSH UPSERTS (New or Modified)
-  const pendingUpserts = await table
-    .where("synced").equals(0)
-    .filter((record: any) => !record.isDeleted)
-    .toArray();
+// Track the last sync time in localStorage to avoid redundant payloads
+const getLST = () => parseInt(localStorage.getItem('dome_last_sync') || '0', 10);
+const setLST = (time: number) => localStorage.setItem('dome_last_sync', time.toString());
 
-  if (pendingUpserts.length > 0) {
-    // const { error } = await supabase.from(tableName).upsert(
-    //   pendingUpserts.map(({ id, synced, ...rest }) => rest), // Strip local ID
-    //   { onConflict: 'uid' } // or 'date' for the days table
-    // );
-    // if (!error) {
-    //   await table.bulkUpdate(pendingUpserts.map((r: any) => ({ key: r.id || r.date, changes: { synced: true } })));
-    // }
+export async function pushLocalChangesToSupabase() {
+  if (typeof window === 'undefined' || !navigator.onLine) return;
+
+  const lastSync = getLST();
+  const now = Date.now();
+
+  try {
+    // 1. Gather all local changes since last sync
+    const pendingTasks = await db.tasks.where('updated_at').above(lastSync).toArray();
+    const pendingDoodles = await db.doodles.where('updated_at').above(lastSync).toArray();
+    const pendingDays = await db.days.where('updated_at').above(lastSync).toArray();
+
+    if (!pendingTasks.length && !pendingDoodles.length && !pendingDays.length) return;
+
+    // 2. Push Tasks
+    if (pendingTasks.length > 0) {
+      const { error } = await supabase.from('tasks').upsert(
+        pendingTasks.map(({ id, ...rest }) => rest), // Strip local auto-increment ID
+        { onConflict: 'local_id' }
+      );
+      if (error) throw error;
+    }
+
+    // 3. Push Doodles
+    if (pendingDoodles.length > 0) {
+      const { error } = await supabase.from('doodles').upsert(
+        pendingDoodles.map(({ id, ...rest }) => rest),
+        { onConflict: 'local_id' }
+      );
+      if (error) throw error;
+    }
+
+    // 4. Push Days
+    if (pendingDays.length > 0) {
+      const { error } = await supabase.from('days').upsert(
+        pendingDays.map(({ id, ...rest }) => rest),
+        { onConflict: 'date' }
+      );
+      if (error) throw error;
+    }
+
+    // 5. Update timestamp on success
+    setLST(now);
+    console.log(`[Sync] Successfully pushed ${pendingTasks.length + pendingDoodles.length + pendingDays.length} records.`);
+  } catch (error) {
+    console.error('[Sync] Push failed:', error);
   }
-
-  // 2. PUSH DELETES (Soft deleted locally, needs hard delete on remote)
-  const pendingDeletes = await table
-    .where("synced").equals(0)
-    .filter((record: any) => record.isDeleted === true)
-    .toArray();
-
-  if (pendingDeletes.length > 0) {
-    const uidsToDelete = pendingDeletes.map((r: any) => r.uid); // or r.date for days
-    // const { error } = await supabase.from(tableName).delete().in('uid', uidsToDelete);
-    
-    // if (!error) {
-    //   // Once confirmed by server, completely eradicate from local Dexie
-    //   await table.bulkDelete(pendingDeletes.map((r: any) => r.id || r.date));
-    // }
-  }
-}
-
-// 3. PULL REMOTE DELTAS (Last-Write-Wins)
-// Call this on app load and periodically.
-export async function pullRemoteUpdates(lastSyncTimestamp: number) {
-  // const { data, error } = await supabase
-  //   .from("tasks")
-  //   .select("*")
-  //   .gt("updatedAt", lastSyncTimestamp);
-    
-  // if (data) {
-  //   for (const remoteRow of data) {
-  //      const localRow = await db.tasks.where("uid").equals(remoteRow.uid).first();
-  //      if (!localRow || remoteRow.updatedAt > localRow.updatedAt) {
-  //         // Remote is newer, overwrite local and mark as synced
-  //         await db.tasks.put({ ...localRow, ...remoteRow, synced: true });
-  //      }
-  //   }
-  // }
 }
