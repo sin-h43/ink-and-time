@@ -1,53 +1,51 @@
-import Dexie, { Table } from "dexie";
+import Dexie, { type Table } from 'dexie';
 
 export type Importance = "low" | "medium" | "high";
 
 export interface Task {
-  id?: number;
-  uid: string; // stable id for Supabase sync
-  date: string; // YYYY-MM-DD
+  id?: number; // Local auto-increment
+  local_id: string; // NanoID/UUID for Supabase matching
+  date: string;
   title: string;
   time: string | null;
   completed: boolean;
   importance: Importance;
-  updatedAt: number;
-  synced: boolean; // flips true once pushed
-  isDeleted: boolean; // Soft delete flag for offline destruction
+  updated_at: number;
+  deleted_at: number | null;
 }
 
 export interface Doodle {
   id?: number;
-  uid: string;
-  date: string; // YYYY-MM-DD
+  local_id: string;
+  date: string;
   iconId: string;
   label: string;
-  updatedAt: number;
-  synced: boolean;
-  isDeleted: boolean;
+  updated_at: number;
+  deleted_at: number | null;
 }
 
 export interface DayMeta {
-  date: string; // Primary Key: YYYY-MM-DD
-  shadeId: string;
+  id?: number;
+  date: string;
   mood: number;
-  updatedAt: number;
-  synced: boolean;
+  shadeId: string;
+  updated_at: number;
 }
 
-export class AppDB extends Dexie {
+export class DoMEDatabase extends Dexie {
   tasks!: Table<Task, number>;
   doodles!: Table<Doodle, number>;
-  days!: Table<DayMeta, string>;
+  days!: Table<DayMeta, number>;
 
   constructor() {
-    super("dome-db");
-    // Version 2 upgrade: adds 'days' table and 'isDeleted' indices
-    this.version(2).stores({
-      tasks: "++id, uid, date, completed, synced, isDeleted",
-      doodles: "++id, uid, date, synced, isDeleted",
-      days: "date, synced", // Primary key is the date string
+    super('DoMEDB');
+    this.version(1).stores({
+      // Primary key is ++id. We index local_id and updated_at for syncing.
+      tasks: '++id, local_id, date, updated_at',
+      doodles: '++id, local_id, date, updated_at',
+      days: '++id, date, updated_at'
     });
   }
 }
 
-export const db = new AppDB();
+export const db = new DoMEDatabase();
