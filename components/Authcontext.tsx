@@ -1,0 +1,99 @@
+"use client";
+
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import type { Session, User } from "@supabase/supabase-js";
+import { supabase } from "./supabaseClient";
+
+interface AuthContextValue {
+  session: Session | null;
+  user: User | null;
+  loading: boolean;
+  signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
+  signUpWithPassword: (email: string, password: string, name: string) => Promise<{ error: string | null }>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
+  signOut: () => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<{ error: string | null }>;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setLoading(false);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+      setLoading(false);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const signInWithPassword: AuthContextValue["signInWithPassword"] = async (email, password) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return { error: error?.message ?? null };
+  };
+
+  const signUpWithPassword: AuthContextValue["signUpWithPassword"] = async (email, password, name) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: name } },
+    });
+    return { error: error?.message ?? null };
+  };
+
+  const redirectTo = () => (typeof window !== "undefined" ? window.location.origin : undefined);
+
+  const signInWithGoogle = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: redirectTo() },
+    });
+  };
+
+  const signInWithApple = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "apple",
+      options: { redirectTo: redirectTo() },
+    });
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+  };
+
+  const sendPasswordReset: AuthContextValue["sendPasswordReset"] = async (email) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: redirectTo() });
+    return { error: error?.message ?? null };
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        session,
+        user: session?.user ?? null,
+        loading,
+        signInWithPassword,
+        signUpWithPassword,
+        signInWithGoogle,
+        signInWithApple,
+        signOut,
+        sendPasswordReset,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within an AuthProvider");
+  return ctx;
+}
