@@ -1,8 +1,8 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { THEMES, THEME_ORDER, CSS_VAR_NAMES, type ThemeId, type ThemeTokens } from "./themes";
-import { supabase } from "./supabaseClient";
+import { THEMES, THEME_ORDER, CSS_VAR_NAMES, type ThemeId, type ThemeTokens } from "./Themes";
+import { supabase } from "./Supabaseclient";
 
 const STORAGE_KEY = "dome_theme";
 
