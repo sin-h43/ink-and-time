@@ -1,9 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from './supabaseClient';
 import { db } from './db';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-export const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Track the last sync time in localStorage to avoid redundant payloads
 const getLST = () => parseInt(localStorage.getItem('dome_last_sync') || '0', 10);
@@ -11,6 +7,11 @@ const setLST = (time: number) => localStorage.setItem('dome_last_sync', time.toS
 
 export async function pushLocalChangesToSupabase() {
   if (typeof window === 'undefined' || !navigator.onLine) return;
+
+  // Only push once someone's actually signed in — otherwise every row would
+  // violate the `user_id = auth.uid()` RLS policies in db.md.
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) return;
 
   const lastSync = getLST();
   const now = Date.now();
