@@ -1,20 +1,20 @@
 import { useEffect, useState } from "react";
 
-/* ---------------------------------- Tokens ----------------------------------
-   Pulled 1:1 from doMEApp.tsx — keep these in sync if the palette ever shifts. */
+/* Tokens now point at the same CSS custom properties ThemeContext sets, so the
+   splash screen matches whatever theme is active instead of always being pink. */
 const C = {
-  page: "#FEFCF6",
-  ink: "#2E2B24",
-  inkSoft: "#6B6558",
-  navy: "#2B3A5C",
-  line: "#DDD5C2",
-  lineSoft: "#EBE4D4",
-  gridLine: "rgba(190, 175, 140, 0.16)",
-  pink0: "#F3D9DD",
-  pink1: "#E8AEBB",
-  pink2: "#D97690",
-  pink3: "#B54F70",
-  pink4: "#b53a62",
+  page: "var(--dome-page, #FEFCF6)",
+  ink: "var(--dome-ink, #2E2B24)",
+  inkSoft: "var(--dome-ink-soft, #6B6558)",
+  navy: "var(--dome-navy, #2B3A5C)",
+  line: "var(--dome-line, #DDD5C2)",
+  lineSoft: "var(--dome-line-soft, #EBE4D4)",
+  gridLine: "var(--dome-grid-line, rgba(190, 175, 140, 0.16))",
+  pink0: "var(--dome-pink0, #F3D9DD)",
+  pink1: "var(--dome-pink1, #E8AEBB)",
+  pink2: "var(--dome-pink2, #D97690)",
+  pink3: "var(--dome-pink3, #B54F70)",
+  pink4: "var(--dome-pink4, #b53a62)",
 };
 
 const HAND = "'Patrick Hand', cursive";
@@ -55,7 +55,6 @@ export default function LoadingScreen() {
         zIndex: 9999,
       }}
     >
-      {/* Swap for a local @font-face / next/font in production — this <link> is preview-only */}
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Patrick+Hand&display=swap"
@@ -87,7 +86,6 @@ export default function LoadingScreen() {
         }
       `}</style>
 
-      {/* Wordmark replaces the generic "Loading" text */}
       <div
         style={{
           fontFamily: DISPLAY,
@@ -100,7 +98,6 @@ export default function LoadingScreen() {
         do·me
       </div>
 
-      {/* Signature element: a pen sketching a wavy line, nib tracing along it */}
       <svg width="260" height="40" viewBox="0 0 260 40" style={{ overflow: "visible" }}>
         <path
           className="doME-pen"
@@ -123,7 +120,6 @@ export default function LoadingScreen() {
         />
       </svg>
 
-      {/* Cycling handwritten captions */}
       <div style={{ height: 22, position: "relative", width: 240, textAlign: "center" }}>
         {CAPTIONS.map((c, i) => (
           <span
@@ -145,7 +141,6 @@ export default function LoadingScreen() {
         ))}
       </div>
 
-      {/* Quiet nod to the pin's dot-loader, kept small and restrained */}
       <div style={{ display: "flex", gap: 7 }}>
         {[C.pink1, C.pink2, C.pink3].map((clr, i) => (
           <span
