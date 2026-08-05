@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { ThemeProvider } from "@/lib/ThemeContext";
-import { AuthProvider } from "@/lib/AuthContext";
+import { ThemeProvider } from "@/lib/Themecontext";
+import { AuthProvider } from "@/lib/Authcontext";
 
 export const metadata: Metadata = {
   title: "doME — a hybrid to-do journal",

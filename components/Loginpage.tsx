@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useAuth } from "@/lib/AuthContext";
-import { useTheme } from "@/lib/ThemeContext";
+import { useAuth } from "@/lib/Authcontext";
+import { useTheme } from "@/lib/Themecontext";
 
 const HAND = "'Patrick Hand', cursive";
 const DISPLAY = "'Caveat', cursive";

@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { X, LogOut, Palette, Bell, Database, User as UserIcon, Check, Download, Trash2, AlertTriangle } from "lucide-react";
-import { useAuth } from "@/lib/AuthContext";
-import { useTheme } from "@/lib/ThemeContext";
-import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/lib/Authcontext";
+import { useTheme } from "@/lib/Themecontext";
+import { supabase } from "@/lib/Supabaseclient";
 import { db } from "@/lib/db";
-import type { ThemeId } from "@/lib/themes";
+import type { ThemeId } from "@/lib/Themes";
 
 const HAND = "'Patrick Hand', cursive";
 const DISPLAY = "'Caveat', cursive";

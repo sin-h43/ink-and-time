@@ -17,7 +17,7 @@ import { useBackgroundSync } from "@/lib/useBackgroundSync";
 import ReactPlayer from "react-player";
 import Draggable, { type DraggableProps } from "react-draggable";
 import LoadingScreen from "./LoadingScreen";
-import ProfileButton from "./ProfileButton";
+import ProfileButton from "./Profilebutton";
 
 /* ---------------------------------- Tokens ---------------------------------
    Values now point at CSS custom properties (set by ThemeContext's wrapper

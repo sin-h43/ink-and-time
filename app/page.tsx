@@ -1,4 +1,4 @@
-import AuthGate from "@/components/AuthGate";
+import AuthGate from "@/components/Authgate";
 import DoMEApp from "@/components/doMEApp";
 
 export default function Home() {

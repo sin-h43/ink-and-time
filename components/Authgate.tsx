@@ -1,8 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useAuth } from "@/lib/AuthContext";
-import LoginPage from "./LoginPage";
+import { useAuth } from "@/lib/Authcontext";
+import LoginPage from "./Loginpage";
 import LoadingScreen from "./LoadingScreen";
 
 export default function AuthGate({ children }: { children: ReactNode }) {
