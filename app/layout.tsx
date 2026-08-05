@@ -1,7 +1,7 @@
-// declare module "./globals.css";
-
 import type { Metadata } from "next";
 import "./globals.css";
+import { ThemeProvider } from "@/lib/Themecontext";
+import { AuthProvider } from "@/lib/Authcontext";
 
 export const metadata: Metadata = {
   title: "doME — a hybrid to-do journal",
@@ -16,7 +16,11 @@ export const viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <ThemeProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </ThemeProvider>
+      </body>
     </html>
   );
 }
