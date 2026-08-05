@@ -6,9 +6,10 @@ import {
   ChevronLeft, ChevronRight, Sparkles, AlarmClock, Coffee, BookOpen,
   Dumbbell, Milk, Laptop, UtensilsCrossed, Film, Camera, Cat, Apple,
   ShoppingBag, Moon, Mail, Phone, Users, Droplet, Footprints,
-  NotebookPen, Music, Gift, Heart, Bike, ShowerHead, LucideIcon,GripHorizontal
+  NotebookPen, Music, Gift, Heart, Bike, ShowerHead, LucideIcon, GripHorizontal,
+  CalendarDays, CalendarCheck,
 } from "lucide-react";
-import { Task, Importance,Doodle, DayMeta } from "@/lib/db";
+import { Task, Importance, Doodle, DayMeta } from "@/lib/db";
 import { useTasks } from "@/lib/useTasks";
 import { useDoodles } from "@/lib/useDoodles";
 import { useDays } from "@/lib/useDays";
@@ -16,25 +17,30 @@ import { useBackgroundSync } from "@/lib/useBackgroundSync";
 import ReactPlayer from "react-player";
 import Draggable, { type DraggableProps } from "react-draggable";
 import LoadingScreen from "./LoadingScreen";
+import ProfileButton from "./ProfileButton";
 
-
-/* ---------------------------------- Tokens --------------------------------- */
+/* ---------------------------------- Tokens ---------------------------------
+   Values now point at CSS custom properties (set by ThemeContext's wrapper
+   div) with the original peony hex as fallback. Switching themes just means
+   ThemeContext re-sets these vars — nothing else in this file has to change,
+   including the module-level color arrays below (IMPORTANCE, BOX_SHADES,
+   TIER_COLOR) that read from `C` outside of any component. */
 const C = {
-  paper: "#FFFDF8",
-  page: "#FEFCF6",
-  ink: "#2E2B24",
-  inkSoft: "#6B6558",
-  navy: "#2B3A5C",
-  navySoft: "#54628A",
-  line: "#DDD5C2",
-  lineSoft: "#EBE4D4",
-  gridLine: "rgba(190, 175, 140, 0.16)",
-  pink0: "#F3D9DD",
-  pink1: "#E8AEBB",
-  pink2: "#D97690",
-  pink3: "#B54F70",
-  pink4: "#b53a62",
-  gold: "#C69A55",
+  paper: "var(--dome-paper, #FFFDF8)",
+  page: "var(--dome-page, #FEFCF6)",
+  ink: "var(--dome-ink, #2E2B24)",
+  inkSoft: "var(--dome-ink-soft, #6B6558)",
+  navy: "var(--dome-navy, #2B3A5C)",
+  navySoft: "var(--dome-navy-soft, #54628A)",
+  line: "var(--dome-line, #DDD5C2)",
+  lineSoft: "var(--dome-line-soft, #EBE4D4)",
+  gridLine: "var(--dome-grid-line, rgba(190, 175, 140, 0.16))",
+  pink0: "var(--dome-pink0, #F3D9DD)",
+  pink1: "var(--dome-pink1, #E8AEBB)",
+  pink2: "var(--dome-pink2, #D97690)",
+  pink3: "var(--dome-pink3, #B54F70)",
+  pink4: "var(--dome-pink4, #b53a62)",
+  gold: "var(--dome-gold, #C69A55)",
 };
 
 const YOUTUBE_STREAMS = [
@@ -73,6 +79,7 @@ const BOX_SHADES = [
 /* --------------------------------- Helpers --------------------------------- */
 const pad = (n: number) => (n < 10 ? "0" + n : "" + n);
 const fmtDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseDateStr = (s: string) => new Date(`${s}T00:00:00`);
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -223,7 +230,7 @@ function ImportancePicker({ value, onChange }: { value: Importance; onChange: (v
 function TabBar({ active, setActive }: { active: string; setActive: (id: string) => void }) {
   const tabs = [ { id: "today", label: "Today" }, { id: "calendar", label: "Calendar" }, { id: "focus", label: "Focus" } ];
   return (
-    <div style={{ display: "flex", gap: 4, padding: "4px", background: C.pink0, borderRadius: 12, marginBottom: 20 }}>
+    <div style={{ display: "flex", gap: 4, padding: "4px", background: C.pink0, borderRadius: 12 }}>
       {tabs.map((t) => (
         <button key={t.id} onClick={() => setActive(t.id)} style={{
           flex: 1, padding: "10px 12px", borderRadius: 9, border: "none", cursor: "pointer",
@@ -247,10 +254,6 @@ function EmptyNote({ text }: { text: string }) {
 }
 
 /* ------------------------------- Yearly heatmap ------------------------------ */
-// Reads the tasks table directly and aggregates client-side. If your task volume grows
-// large enough for this to matter, swap this for a dedicated `daily_activity` Dexie table
-// that's incremented on every write (see PRD §2B) instead of scanning here — this version
-// trades a bit of scale headroom for not needing a second write path right now.
 function YearHeatmap({ tasks }: { tasks: Task[] }) {
   const activity = useMemo(() => {
     const map: Record<string, { total: number; done: number }> = {};
@@ -344,7 +347,7 @@ function YearHeatmap({ tasks }: { tasks: Task[] }) {
 
 /* --------------------------------- Today view -------------------------------- */
 function TodayView({
-  tasks, addTask, toggleTask, dayMap, updateMood, removeTask
+  tasks, addTask, toggleTask, dayMap, updateMood, removeTask, viewDate, onChangeDate,
 }: {
   tasks: Task[];
   addTask: (t: { date: string; title: string; time: string | null; importance: Importance }) => void;
@@ -352,24 +355,28 @@ function TodayView({
   dayMap : Record<string, DayMeta>;
   removeTask: (id: number) =>void;
   updateMood: (date:string, mood: number)=>void;
+  viewDate: string;
+  onChangeDate: (date: string) => void;
 }) {
   const [input, setInput] = useState("");
   const [scheduleOn, setScheduleOn] = useState(false);
   const [manualTime, setManualTime] = useState("");
   const [importance, setImportance] = useState<Importance>("medium");
-  const today = fmtDate(new Date());
-  const todays = tasks.filter((t) => t.date === today);
-  const scheduled = todays.filter((t) => t.time).sort((a, b) => (a.time as string).localeCompare(b.time as string));
-  const unscheduled = todays.filter((t) => !t.time);
-  const dateObj = new Date();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const todayStr = fmtDate(new Date());
+  const isToday = viewDate === todayStr;
+  const dayTasks = tasks.filter((t) => t.date === viewDate);
+  const scheduled = dayTasks.filter((t) => t.time).sort((a, b) => (a.time as string).localeCompare(b.time as string));
+  const unscheduled = dayTasks.filter((t) => !t.time);
+  const dateObj = parseDateStr(viewDate);
 
-  const currentMood = dayMap[today]?.mood || 0;
+  const currentMood = dayMap[viewDate]?.mood || 0;
 
   const handleAdd = () => {
     if (!input.trim()) return;
     const parsed = parseQuickAdd(input);
     const time = scheduleOn ? (manualTime || parsed.time) : parsed.time;
-    addTask({ date: today, title: parsed.title, time, importance });
+    addTask({ date: viewDate, title: parsed.title, time, importance });
     setInput(""); setManualTime("");
   };
 
@@ -387,7 +394,6 @@ function TodayView({
           {t.title}
         </span>
         
-        {/* ADD THIS DELETE BUTTON */}
         <button 
           onClick={() => removeTask(t.id!)} 
           aria-label="Delete task" 
@@ -403,20 +409,75 @@ function TodayView({
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}>
-        <div style={{ width: 52, height: 52, background: C.pink2, color: C.paper, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: DISPLAY, fontWeight: 700, fontSize: 30 }}>
-          {dateObj.getDate()}
+      {/* Date nav: calendar icon jumps to any day, arrows step ±1 day. Fully
+          functional for any date, not just "today" — addTask/toggleTask/
+          removeTask below are all keyed off `viewDate`. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
+        <button
+          onClick={() => onChangeDate(offsetDate(-1, dateObj))}
+          aria-label="Previous day"
+          style={{ width: 34, height: 34, borderRadius: 8, border: `1.5px solid ${C.line}`, background: C.paper, color: C.ink, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+        >
+          <ChevronLeft size={18} />
+        </button>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, position: "relative" }}>
+          <div style={{ width: 52, height: 52, background: C.pink2, color: C.paper, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: DISPLAY, fontWeight: 700, fontSize: 30, flexShrink: 0 }}>
+            {dateObj.getDate()}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ fontFamily: DISPLAY, fontSize: 28, color: C.navy, fontWeight: 700, lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {dateObj.toLocaleDateString("en-US", { weekday: "long" })}
+              </div>
+              <button
+                onClick={() => setPickerOpen((o) => !o)}
+                aria-label="Jump to a date"
+                title="Jump to a date"
+                style={{ background: "none", border: "none", cursor: "pointer", color: C.navySoft, display: "flex", flexShrink: 0, padding: 2 }}
+              >
+                <CalendarDays size={18} />
+              </button>
+            </div>
+            <div style={{ fontFamily: HAND, fontSize: 14, color: C.inkSoft, display: "flex", alignItems: "center", gap: 8 }}>
+              <span>{MONTH_NAMES[dateObj.getMonth()]} {dateObj.getDate()}, {dateObj.getFullYear()}</span>
+              {!isToday && (
+                <button
+                  onClick={() => onChangeDate(todayStr)}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 4, background: C.pink0, color: C.pink4, border: "none", borderRadius: 999, padding: "2px 9px", fontFamily: HAND, fontSize: 12.5, cursor: "pointer" }}
+                >
+                  <CalendarCheck size={11} /> Jump to today
+                </button>
+              )}
+            </div>
+          </div>
+
+          {pickerOpen && (
+            <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 8, background: C.paper, border: `1.5px solid ${C.line}`, borderRadius: 10, padding: 10, zIndex: 15, boxShadow: "0 6px 18px rgba(46,43,36,0.14)" }}>
+              <input
+                type="date"
+                value={viewDate}
+                onChange={(e) => { if (e.target.value) { onChangeDate(e.target.value); setPickerOpen(false); } }}
+                style={{ padding: "7px 9px", borderRadius: 8, border: `1.5px solid ${C.line}`, fontFamily: HAND, fontSize: 14, background: C.page, color: C.ink }}
+                autoFocus
+              />
+            </div>
+          )}
         </div>
-        <div>
-          <div style={{ fontFamily: DISPLAY, fontSize: 30, color: C.navy, fontWeight: 700, lineHeight: 1 }}>{dateObj.toLocaleDateString("en-US", { weekday: "long" })}</div>
-          <div style={{ fontFamily: HAND, fontSize: 14, color: C.inkSoft }}>{MONTH_NAMES[dateObj.getMonth()]} {dateObj.getFullYear()}</div>
-        </div>
+
+        <button
+          onClick={() => onChangeDate(offsetDate(1, dateObj))}
+          aria-label="Next day"
+          style={{ width: 34, height: 34, borderRadius: 8, border: `1.5px solid ${C.line}`, background: C.paper, color: C.ink, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+        >
+          <ChevronRight size={18} />
+        </button>
       </div>
 
       <div style={{ marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 8, marginBottom: scheduleOn ? 8 : 0 }}>
           <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-            placeholder='Try "Read chapter 3 at 5pm"'
+            placeholder={isToday ? 'Try "Read chapter 3 at 5pm"' : `Add something for ${MONTH_NAMES[dateObj.getMonth()]} ${dateObj.getDate()}`}
             style={{ flex: 1, padding: "11px 14px", borderRadius: 10, border: `1.5px solid ${C.line}`, background: C.paper, fontFamily: HAND, fontSize: 16, color: C.ink, outline: "none" }} />
           <button onClick={() => setScheduleOn((s) => !s)} aria-label="Toggle schedule time" title="Schedule this task" style={{
             width: 42, height: 42, borderRadius: 10, border: `1.5px solid ${scheduleOn ? C.navy : C.line}`,
@@ -456,10 +517,10 @@ function TodayView({
       </div>
 
       <div style={{ paddingTop: 4, paddingBottom: 8, borderTop: `1px dashed ${C.line}`, display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
-        <span style={{ fontFamily: HAND, fontSize: 16, color: C.inkSoft }}>Today's mood</span>
+        <span style={{ fontFamily: HAND, fontSize: 16, color: C.inkSoft }}>{isToday ? "Today's mood" : "Mood that day"}</span>
         <div style={{ display: "flex", gap: 4 }}>
           {[1, 2, 3, 4, 5].map((n) => (
-            <button key={n} onClick={() => updateMood(today, n)} aria-label={`${n} star`} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
+            <button key={n} onClick={() => updateMood(viewDate, n)} aria-label={`${n} star`} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
               <Star size={20} fill={n <= currentMood ? C.gold : "none"} color={n <= currentMood ? C.gold : C.line} strokeWidth={1.5} />
             </button>
           ))}
@@ -593,7 +654,7 @@ function DayDialog({
 
 /* --------------------------------- Calendar view ------------------------------ */
 function CalendarView({
-  tasks, addTask, toggleTask, doodleMap, addDoodle, removeDoodle, dayMap, updateShade, removeTask
+  tasks, addTask, toggleTask, doodleMap, addDoodle, removeDoodle, dayMap, updateShade, removeTask, onOpenDayInToday,
 }: {
   tasks: Task[];
   addTask: (t: { date: string; title: string; time: string | null; importance: Importance }) => void;
@@ -604,6 +665,7 @@ function CalendarView({
   addDoodle: (date: string, iconId: string, label: string) => void;
   removeDoodle: (id: number) => void;
   removeTask: (id: number)=>void;
+  onOpenDayInToday: (date: string) => void;
 }) {
   const [monthOffset, setMonthOffset] = useState(0);
   const [openDate, setOpenDate] = useState<string | null>(null);
@@ -756,14 +818,12 @@ function FocusView({
   onStreamSelect: (streamId: StreamId) => void;
 }) {
   const today = fmtDate(new Date());
-  // Everything open today — scheduled AND to-do — so nothing gets left out of Focus mode.
   const openToday = tasks.filter((t) => t.date === today && !t.completed);
   const openScheduled = openToday.filter((t) => t.time).sort((a, b) => (a.time as string).localeCompare(b.time as string));
   const openTodo = openToday.filter((t) => !t.time);
 
   const [focusTaskId, setFocusTaskId] = useState<number | null>(openToday[0]?.id ?? null);
   useEffect(() => {
-    // If the currently focused task got completed or removed, fall back to the next open one.
     if (focusTaskId !== null && !openToday.some((t) => t.id === focusTaskId)) {
       setFocusTaskId(openToday[0]?.id ?? null);
     }
@@ -867,7 +927,6 @@ function FocusView({
         </label>
       </div>
 
-      {/* Focusing on — now pulls from BOTH the schedule and the to-do list */}
       <div style={{ width: "100%", maxWidth: 360, marginBottom: 22 }}>
         <SectionLabel text="Focusing on" />
         {openToday.length === 0 && <EmptyNote text="No open tasks — enjoy the quiet." />}
@@ -895,10 +954,9 @@ function FocusView({
     display: "flex", 
     gap: 8, 
     overflowX: "auto", 
-    paddingBottom: 8, // Adds breathing room for the scrollbar
-    scrollbarWidth: "none" // Hides scrollbar on Firefox for a cleaner UX
+    paddingBottom: 8,
+    scrollbarWidth: "none"
   }}>
-    {/* Hides scrollbar on WebKit (Chrome/Safari) while keeping it scrollable */}
     <style>{`
       div::-webkit-scrollbar { display: none; }
     `}</style>
@@ -910,8 +968,8 @@ function FocusView({
           key={stream.id} 
           onClick={() => onStreamSelect(stream.id)} 
           style={{
-            flexShrink: 0, // Forces the container to scroll instead of squashing the buttons
-            whiteSpace: "nowrap", // Prevents the text from stacking
+            flexShrink: 0,
+            whiteSpace: "nowrap",
             padding: "10px 14px", 
             borderRadius: 10, 
             cursor: "pointer",
@@ -942,7 +1000,6 @@ function AmbientStreamPlayer({
   onPlayingChange: (isPlaying: boolean) => void;
   onClose: () => void;
 }) {
-  // 1. Create a ref for the draggable container
   const nodeRef = useRef<HTMLDivElement>(null); 
 
   const stream = YOUTUBE_STREAMS.find((item) => item.id === activeStream);
@@ -950,13 +1007,13 @@ function AmbientStreamPlayer({
 
   return (
     <DraggableContainer 
-      nodeRef={nodeRef} // 2. Pass the ref to Draggable
+      nodeRef={nodeRef}
       handle=".drag-handle" 
       bounds="parent" 
       defaultPosition={{ x: 0, y: 0 }}
     >
       <div 
-        ref={nodeRef} // 3. Attach the exact same ref to the immediate child
+        ref={nodeRef}
         style={{
           position: "absolute", bottom: 20, right: 20, width: 280,
           background: C.paper, borderRadius: 12, border: `2px solid ${C.line}`,
@@ -1005,17 +1062,13 @@ export default function DoMEApp() {
   const { tasks, addTask, toggleTask, removeTask } = useTasks();
   const { doodleMap, addDoodle, removeDoodle } = useDoodles();
   const [active, setActive] = useState("today");
+  const [viewDate, setViewDate] = useState(fmtDate(new Date()));
   const [activeStream, setActiveStream] = useState<StreamId | null>(null);
   const [isStreamPlaying, setIsStreamPlaying] = useState(false);
   const {dayMap, updateShade, updateMood} = useDays();
 
   useBackgroundSync();
-  // Brief splash while local-first data hydrates from IndexedDB, so the UI
-  // doesn't flash empty/partial state on first paint. Swap the fixed `duration`
-  // for a real `progress` prop once useTasks/useDoodles/useDays expose an
-  // `isLoading` flag, if you'd rather drive this off actual hydration status.
   const [booting, setBooting] = useState(true);
-  // auto-clear the splash after a short delay to avoid prop mismatch
   useEffect(() => {
     if (!booting) return;
     const t = setTimeout(() => setBooting(false), 500);
@@ -1036,6 +1089,13 @@ export default function DoMEApp() {
     setActiveStream(null);
   };
 
+  // Calendar day cells open in the Today tab so editing a past/future day
+  // uses the exact same fully-functional view instead of a separate mini-editor.
+  const openDayInToday = (date: string) => {
+    setViewDate(date);
+    setActive("today");
+  };
+
   if (booting) {
     return <LoadingScreen />;
   }
@@ -1051,7 +1111,15 @@ export default function DoMEApp() {
         input:focus, textarea:focus { border-color: ${C.pink2} !important; }
       `}</style>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
-        <TabBar active={active} setActive={setActive} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+          <div style={{ fontFamily: DISPLAY, fontSize: 26, fontWeight: 700, color: C.navy, flex: 1 }}>do·me</div>
+          <ProfileButton />
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <TabBar active={active} setActive={setActive} />
+        </div>
+
         {active === "today" && 
         <TodayView 
           tasks={tasks} 
@@ -1060,12 +1128,15 @@ export default function DoMEApp() {
           dayMap={dayMap} 
           updateMood = {updateMood}
           removeTask = {removeTask}
+          viewDate={viewDate}
+          onChangeDate={setViewDate}
         />}
         {active === "calendar" && (
           <CalendarView
             tasks={tasks} addTask={addTask} toggleTask={toggleTask} removeTask = {removeTask}
             doodleMap={doodleMap} addDoodle={addDoodle} removeDoodle={removeDoodle}
             dayMap={dayMap} updateShade={updateShade}
+            onOpenDayInToday={openDayInToday}
           />
         )}
         {active === "focus" && (
