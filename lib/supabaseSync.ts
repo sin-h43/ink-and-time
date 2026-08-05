@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { supabase } from './Supabaseclient';
 import { db } from './db';
 
 // Track the last sync time in localStorage to avoid redundant payloads
