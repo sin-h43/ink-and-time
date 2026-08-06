@@ -6,11 +6,29 @@
 
 html,
 body {
-  background: #fefcf6;
+  background: var(--dome-page);
   margin: 0;
   padding: 0;
 }
 
 * {
   box-sizing: border-box;
+}
+
+/*
+  Fluid container used by app/page.tsx instead of a fixed pixel max-width.
+  clamp() scales the content column between a comfortable mobile-app width
+  and a comfortable reading width on desktop, so the same markup works as
+  both a phone-sized "app" and a centered "website" without separate code
+  paths or hardcoded breakpoints.
+*/
+.dome-shell {
+  width: 100%;
+  max-width: clamp(360px, 92vw, 760px);
+  margin: 0 auto;
+  padding: clamp(16px, 4vw, 28px) clamp(12px, 4vw, 24px);
+  padding-top: max(env(safe-area-inset-top), clamp(16px, 4vw, 28px));
+  padding-bottom: max(env(safe-area-inset-bottom), clamp(16px, 4vw, 28px));
+  padding-left: max(env(safe-area-inset-left), clamp(12px, 4vw, 24px));
+  padding-right: max(env(safe-area-inset-right), clamp(12px, 4vw, 24px));
 }
