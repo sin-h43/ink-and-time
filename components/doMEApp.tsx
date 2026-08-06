@@ -1106,28 +1106,31 @@ export default function DoMEApp() {
 
   return (
     <div style={{
-      background: C.page, minHeight: 480, padding: "clamp(16px, 4vw, 28px) clamp(14px, 3.5vw, 24px)", borderRadius: 16,
+background: C.page,
+      minHeight: "100%",
+      padding: "clamp(20px, 4vw, 32px) clamp(18px, 4vw, 28px)",
+      borderRadius: 20,
+      border: `1.5px solid ${C.line}`,
+      boxShadow: "0 10px 30px rgba(46,43,36,0.06)",
       backgroundImage: `linear-gradient(${C.gridLine} 1px, transparent 1px), linear-gradient(90deg, ${C.gridLine} 1px, transparent 1px)`,
-      backgroundSize: "22px 22px", position: "relative", width: "100%",
-    }}>
+      backgroundSize: "22px 22px",
+      position: "relative",
+      width: "100%",    }}>
       <style>{`
         @keyframes inkfill { from { stroke-dashoffset: 22; } to { stroke-dashoffset: 0; } }
-        input:focus, textarea:focus { border-color: ${C.pink2} !important; }
-        /* Below this width the Schedule / To-do columns stack instead of
-           squeezing side-by-side — keeps things usable on narrow phones
-           while a wide desktop viewport (handled by .dome-shell's clamp())
-           keeps the two-column layout. */
-        @media (max-width: 460px) {
-          .dome-two-col { grid-template-columns: 1fr !important; gap: 24px !important; }
-        }
-      `}</style>
+      input:focus, textarea:focus { border-color: ${C.pink2} !important; }
+
+      @media (max-width: 520px) {
+        .dome-two-col { grid-template-columns: 1fr !important; gap: 20px !important; }
+      }
+    `}</style>
       <div style={{ width: "100%", maxWidth: 680, margin: "0 auto" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-          <div style={{ fontFamily: DISPLAY, fontSize: 26, fontWeight: 700, color: C.navy, flex: 1 }}>do·me</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+          <div style={{ fontFamily: DISPLAY, fontSize: 32, fontWeight: 700, color: C.navy, flex: 1 }}>do·me</div>
           <ProfileButton />
         </div>
 
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 24 }}>
           <TabBar active={active} setActive={setActive} />
         </div>
 
