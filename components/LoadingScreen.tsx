@@ -3,18 +3,18 @@ import { useEffect, useState } from "react";
 /* Tokens now point at the same CSS custom properties ThemeContext sets, so the
    splash screen matches whatever theme is active instead of always being pink. */
 const C = {
-  page: "var(--dome-page, #FEFCF6)",
-  ink: "var(--dome-ink, #2E2B24)",
-  inkSoft: "var(--dome-ink-soft, #6B6558)",
-  navy: "var(--dome-navy, #2B3A5C)",
-  line: "var(--dome-line, #DDD5C2)",
-  lineSoft: "var(--dome-line-soft, #EBE4D4)",
-  gridLine: "var(--dome-grid-line, rgba(190, 175, 140, 0.16))",
-  pink0: "var(--dome-pink0, #F3D9DD)",
-  pink1: "var(--dome-pink1, #E8AEBB)",
-  pink2: "var(--dome-pink2, #D97690)",
-  pink3: "var(--dome-pink3, #B54F70)",
-  pink4: "var(--dome-pink4, #b53a62)",
+  page: "var(--dome-page)",
+  ink: "var(--dome-ink)",
+  inkSoft: "var(--dome-ink-soft)",
+  navy: "var(--dome-navy)",
+  line: "var(--dome-line)",
+  lineSoft: "var(--dome-line-soft)",
+  gridLine: "var(--dome-grid-line)",
+  pink0: "var(--dome-pink0)",
+  pink1: "var(--dome-pink1)",
+  pink2: "var(--dome-pink2)",
+  pink3: "var(--dome-pink3)",
+  pink4: "var(--dome-pink4)",
 };
 
 const HAND = "'Patrick Hand', cursive";
