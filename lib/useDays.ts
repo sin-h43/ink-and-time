@@ -15,21 +15,21 @@ export function useDays() {
 
   // Upsert pattern: Updates existing record or creates a new one if it doesn't exist
   const updateShade = async (date: string, shadeId: string) => {
-    const existing = await db.days.get(date);
+    const existing = await db.days.get({ date });
     if (existing) {
-      await db.days.update(date, { shadeId, updatedAt: Date.now(), synced: false });
+      await db.days.where("date").equals(date).modify({ shadeId, updated_at: Date.now() });
     } else {
-      await db.days.add({ date, shadeId, mood: 0, updatedAt: Date.now(), synced: false });
+      await db.days.add({ date, shadeId, mood: 0, updated_at: Date.now() });
     }
   };
 
   const updateMood = async (date: string, mood: number) => {
-    const existing = await db.days.get(date);
+    const existing = await db.days.get({ date });
     if (existing) {
-      await db.days.update(date, { mood, updatedAt: Date.now(), synced: false });
+      await db.days.where("date").equals(date).modify({ mood, updated_at: Date.now() });
     } else {
       // Default to "paper" if a mood is logged before a custom shade is set
-      await db.days.add({ date, shadeId: "paper", mood, updatedAt: Date.now(), synced: false });
+      await db.days.add({ date, shadeId: "paper", mood, updated_at: Date.now() });
     }
   };
 
