@@ -20,27 +20,31 @@ import LoadingScreen from "./LoadingScreen";
 import ProfileButton from "./Profilebutton";
 
 /* ---------------------------------- Tokens ---------------------------------
-   Values now point at CSS custom properties (set by ThemeContext's wrapper
-   div) with the original peony hex as fallback. Switching themes just means
-   ThemeContext re-sets these vars — nothing else in this file has to change,
-   including the module-level color arrays below (IMPORTANCE, BOX_SHADES,
-   TIER_COLOR) that read from `C` outside of any component. */
+   Values point at CSS custom properties that ThemeContext manages on
+   document.documentElement. No hex fallbacks: app/layout.tsx runs a blocking
+   script before first paint that always sets every one of these vars
+   (defaulting to peony), so they're guaranteed defined by the time anything
+   in this file ever renders. The palette itself lives in exactly one place —
+   lib/themes.ts — nowhere else. Switching themes just re-sets these vars;
+   nothing else in this file has to change, including the module-level color
+   arrays below (IMPORTANCE, BOX_SHADES, TIER_COLOR) that read from `C`
+   outside of any component. */
 const C = {
-  paper: "var(--dome-paper, #FFFDF8)",
-  page: "var(--dome-page, #FEFCF6)",
-  ink: "var(--dome-ink, #2E2B24)",
-  inkSoft: "var(--dome-ink-soft, #6B6558)",
-  navy: "var(--dome-navy, #2B3A5C)",
-  navySoft: "var(--dome-navy-soft, #54628A)",
-  line: "var(--dome-line, #DDD5C2)",
-  lineSoft: "var(--dome-line-soft, #EBE4D4)",
-  gridLine: "var(--dome-grid-line, rgba(190, 175, 140, 0.16))",
-  pink0: "var(--dome-pink0, #F3D9DD)",
-  pink1: "var(--dome-pink1, #E8AEBB)",
-  pink2: "var(--dome-pink2, #D97690)",
-  pink3: "var(--dome-pink3, #B54F70)",
-  pink4: "var(--dome-pink4, #b53a62)",
-  gold: "var(--dome-gold, #C69A55)",
+  paper: "var(--dome-paper)",
+  page: "var(--dome-page)",
+  ink: "var(--dome-ink)",
+  inkSoft: "var(--dome-ink-soft)",
+  navy: "var(--dome-navy)",
+  navySoft: "var(--dome-navy-soft)",
+  line: "var(--dome-line)",
+  lineSoft: "var(--dome-line-soft)",
+  gridLine: "var(--dome-grid-line)",
+  pink0: "var(--dome-pink0)",
+  pink1: "var(--dome-pink1)",
+  pink2: "var(--dome-pink2)",
+  pink3: "var(--dome-pink3)",
+  pink4: "var(--dome-pink4)",
+  gold: "var(--dome-gold)",
 };
 
 const YOUTUBE_STREAMS = [
@@ -503,7 +507,7 @@ function TodayView({
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 26, marginTop: 20 }}>
+      <div className="dome-two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 26, marginTop: 20 }}>
         <div>
           <SectionLabel text="Schedule" />
           {scheduled.length === 0 && <EmptyNote text="Nothing on the clock yet — tap the clock icon above to add a time." />}
@@ -1102,15 +1106,22 @@ export default function DoMEApp() {
 
   return (
     <div style={{
-      background: C.page, minHeight: 480, padding: "28px 24px", borderRadius: 16,
+      background: C.page, minHeight: 480, padding: "clamp(16px, 4vw, 28px) clamp(14px, 3.5vw, 24px)", borderRadius: 16,
       backgroundImage: `linear-gradient(${C.gridLine} 1px, transparent 1px), linear-gradient(90deg, ${C.gridLine} 1px, transparent 1px)`,
-      backgroundSize: "22px 22px", position: "relative",
+      backgroundSize: "22px 22px", position: "relative", width: "100%",
     }}>
       <style>{`
         @keyframes inkfill { from { stroke-dashoffset: 22; } to { stroke-dashoffset: 0; } }
         input:focus, textarea:focus { border-color: ${C.pink2} !important; }
+        /* Below this width the Schedule / To-do columns stack instead of
+           squeezing side-by-side — keeps things usable on narrow phones
+           while a wide desktop viewport (handled by .dome-shell's clamp())
+           keeps the two-column layout. */
+        @media (max-width: 460px) {
+          .dome-two-col { grid-template-columns: 1fr !important; gap: 24px !important; }
+        }
       `}</style>
-      <div style={{ maxWidth: 560, margin: "0 auto" }}>
+      <div style={{ width: "100%", maxWidth: 680, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
           <div style={{ fontFamily: DISPLAY, fontSize: 26, fontWeight: 700, color: C.navy, flex: 1 }}>do·me</div>
           <ProfileButton />
