@@ -507,19 +507,27 @@ function TodayView({
         </div>
       </div>
 
-      <div className="dome-two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 26, marginTop: 20 }}>
-        <div>
-          <SectionLabel text="Schedule" />
-          {scheduled.length === 0 && <EmptyNote text="Nothing on the clock yet — tap the clock icon above to add a time." />}
-          {scheduled.map((t) => <TaskRow key={t.id} t={t} showTime />)}
-        </div>
-        <div>
-          <SectionLabel text="To-do list" />
-          {unscheduled.length === 0 && <EmptyNote text="All clear here." />}
-          {unscheduled.map((t) => <TaskRow key={t.id} t={t} />)}
-        </div>
-      </div>
-
+<div 
+  className="dome-two-col" 
+  style={{ 
+    display: "grid", 
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", /* Auto-adapts cleanly on website mode */
+    gap: 24, 
+    marginBottom: 26, 
+    marginTop: 20 
+  }}
+>
+  <div>
+    <SectionLabel text="Schedule" />
+    {scheduled.length === 0 && <EmptyNote text="Nothing on the clock yet — tap the clock icon above to add a time." />}
+    {scheduled.map((t) => <TaskRow key={t.id} t={t} showTime />)}
+  </div>
+  <div>
+    <SectionLabel text="To-do list" />
+    {unscheduled.length === 0 && <EmptyNote text="All clear here." />}
+    {unscheduled.map((t) => <TaskRow key={t.id} t={t} />)}
+  </div>
+</div>
       <div style={{ paddingTop: 4, paddingBottom: 8, borderTop: `1px dashed ${C.line}`, display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
         <span style={{ fontFamily: HAND, fontSize: 16, color: C.inkSoft }}>{isToday ? "Today's mood" : "Mood that day"}</span>
         <div style={{ display: "flex", gap: 4 }}>
