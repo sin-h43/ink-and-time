@@ -1,7 +1,7 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { THEMES, THEME_ORDER, CSS_VAR_NAMES, type ThemeId, type ThemeTokens } from "./Themes";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { THEMES, THEME_ORDER, toCssVars, type ThemeId, type ThemeTokens } from "./Themes";
 import { supabase } from "./Supabaseclient";
 
 const STORAGE_KEY = "dome_theme";
@@ -16,26 +16,28 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function buildCssVars(tokens: ThemeTokens): CSSProperties {
-  const style: Record<string, string> = {};
-  (Object.keys(CSS_VAR_NAMES) as (keyof typeof CSS_VAR_NAMES)[]).forEach((key) => {
-    style[CSS_VAR_NAMES[key]] = tokens[key];
-  });
-  return style as CSSProperties;
+function applyToRoot(tokens: ThemeTokens) {
+  if (typeof document === "undefined") return;
+  const vars = toCssVars(tokens);
+  const root = document.documentElement.style;
+  Object.entries(vars).forEach(([k, v]) => root.setProperty(k, v));
+}
+
+function readStoredThemeId(): ThemeId {
+  if (typeof window === "undefined") return "peony";
+  const stored = localStorage.getItem(STORAGE_KEY);
+  return stored && stored in THEMES ? (stored as ThemeId) : "peony";
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [themeId, setThemeId] = useState<ThemeId>("peony");
+  // The blocking script in layout.tsx already painted the DOM with the right
+  // theme before this component ever mounts. This lazy initializer just
+  // brings React's state in sync with what's already on screen — it isn't
+  // what prevents the flash, it just avoids a second, redundant one.
+  const [themeId, setThemeId] = useState<ThemeId>(readStoredThemeId);
 
-  // Load whatever was picked last time, on this device, before anything paints
-  // with the wrong colors.
-  useEffect(() => {
-    const stored = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
-    if (stored && stored in THEMES) setThemeId(stored as ThemeId);
-  }, []);
-
-  // When someone signs in, prefer their saved remote preference (e.g. they set
-  // it on another device) over whatever's cached locally.
+  // If someone signs in and has a different theme saved remotely (e.g. set
+  // on another device), prefer that over what's cached on this device.
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session?.user) {
@@ -46,12 +48,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
           .maybeSingle();
         if (data?.theme && data.theme in THEMES) {
           setThemeId(data.theme as ThemeId);
-          localStorage.setItem(STORAGE_KEY, data.theme);
         }
       }
     });
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // Keep the DOM in sync whenever themeId changes for any reason (manual
+  // pick, remote sync above, etc).
+  useEffect(() => {
+    applyToRoot(THEMES[themeId]);
+  }, [themeId]);
 
   const setTheme = (id: ThemeId) => {
     setThemeId(id);
@@ -66,8 +73,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const cssVars = useMemo(() => buildCssVars(THEMES[themeId]), [themeId]);
-
   const value: ThemeContextValue = {
     themeId,
     C: THEMES[themeId],
@@ -76,11 +81,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     allThemes: THEMES,
   };
 
-  return (
-    <ThemeContext.Provider value={value}>
-      <div style={{ ...cssVars, minHeight: "100%" }}>{children}</div>
-    </ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {
