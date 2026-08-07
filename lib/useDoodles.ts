@@ -5,33 +5,31 @@ import { db, Doodle } from "./db";
 import { makeUid } from "./id";
 
 export function useDoodles() {
-  // Live-reactive: filters out soft-deleted doodles instantly
   const doodles = useLiveQuery(
-    () => db.doodles.filter(d => !d.isDeleted).toArray(),
+    () => db.doodles.filter(d => d.deleted_at == null).toArray(),
     [],
     []
   ) ?? [];
 
   const addDoodle = async (date: string, iconId: string, label: string) => {
     await db.doodles.add({
-      uid: makeUid(),
+      local_id: makeUid(),
       date,
       iconId,
       label,
-      updatedAt: Date.now(),
+      updated_at: Date.now(),
+      deleted_at: null,
+      isDeleted: false,
       synced: false,
-      isDeleted: false, // Required for v2 schema
     });
   };
 
   const removeDoodle = async (id: number) => {
     const d = await db.doodles.get(id);
     if (!d) return;
-    // Soft delete mutation for Supabase sync compatibility
-    await db.doodles.update(id, { isDeleted: true, updatedAt: Date.now(), synced: false });
+    await db.doodles.update(id, { deleted_at: Date.now(), updated_at: Date.now() });
   };
 
-  // Transformation layer: Groups doodles by date for O(1) Calendar UI lookups
   const doodleMap = doodles.reduce((acc, curr) => {
     if (!acc[curr.date]) acc[curr.date] = [];
     acc[curr.date].push(curr);

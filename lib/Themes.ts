@@ -145,9 +145,6 @@ export const THEMES: Record<ThemeId, ThemeTokens> = {
 
 export const THEME_ORDER: ThemeId[] = ["peony", "sage", "lavender", "sky", "sand", "mauve"];
 
-// Maps each ThemeTokens field to the CSS custom property it drives.
-// `page` -> --dome-page is the app's background, behind everything.
-// `paper` -> --dome-paper is the card/input surface color sitting on top of it.
 export const CSS_VAR_NAMES: Record<Exclude<keyof ThemeTokens, "id" | "label">, string> = {
   paper: "--dome-paper",
   page: "--dome-page",
@@ -166,10 +163,6 @@ export const CSS_VAR_NAMES: Record<Exclude<keyof ThemeTokens, "id" | "label">, s
   gold: "--dome-gold",
 };
 
-// Single source of truth for turning a theme into a CSS-var map. Used by both
-// the server-rendered anti-flash script (layout.tsx) and the client-side
-// ThemeContext, so there is exactly one place these get generated from —
-// no hex values duplicated anywhere else in the app.
 export function toCssVars(tokens: ThemeTokens): Record<string, string> {
   const out: Record<string, string> = {};
   (Object.keys(CSS_VAR_NAMES) as (keyof typeof CSS_VAR_NAMES)[]).forEach((key) => {
