@@ -4,14 +4,16 @@ export type Importance = "low" | "medium" | "high";
 
 export interface Task {
   id?: number; // Local auto-increment
-  local_id: string; // NanoID/UUID for Supabase matching
+  uid: string; // NanoID/UUID for Supabase matching
   date: string;
   title: string;
   time: string | null;
   completed: boolean;
   importance: Importance;
-  updated_at: number;
+  updatedAt: number;
+  isSynced: boolean;
   deleted_at: number | null;
+  isDeleted: boolean; 
 }
 
 export interface Doodle {
@@ -22,6 +24,8 @@ export interface Doodle {
   label: string;
   updated_at: number;
   deleted_at: number | null;
+  isDeleted: boolean; 
+  synced: boolean;
 }
 
 export interface DayMeta {
