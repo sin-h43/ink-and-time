@@ -37,16 +37,16 @@ export function useTasks() {
     });
   };
 
-  const toggleTask = async (id: number) => {
-    const t = await db.tasks.get(id);
+  const toggleTask = async (uid: number) => {
+    const t = await db.tasks.get(uid);
     if (!t) return;
-    await db.tasks.update(id, { completed: !t.completed, updatedAt: Date.now() });
+    await db.tasks.update(uid, { completed: !t.completed, updatedAt: Date.now() });
   };
 
-  const removeTask = async (id: number) => {
-    const t = await db.tasks.get(id);
+  const removeTask = async (uid: number) => {
+    const t = await db.tasks.get(uid);
     if (!t) return;
-    await db.tasks.update(id, { deleted_at: Date.now(), updatedAt: Date.now() });
+    await db.tasks.update(uid, { deleted_at: Date.now(), updatedAt: Date.now() });
   };
 
   return { tasks, addTask, toggleTask, removeTask };
