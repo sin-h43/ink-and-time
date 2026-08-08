@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { X, LogOut, Palette, Bell, Database, User as UserIcon, Check, Download, Trash2, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/lib/Authcontext";
 import { useTheme } from "@/lib/Themecontext";
-import { supabase } from "@/lib/Supabaseclient";
+import { supabase } from "@/lib/supabaseClient";
 import { db } from "@/lib/db";
 import type { ThemeId } from "@/lib/Themes";
 
@@ -79,11 +79,12 @@ export default function ProfileButton() {
     setNotifs(next);
     localStorage.setItem(NOTIF_KEY, JSON.stringify(next));
     if (user) {
+      // Cast to any to avoid overly strict generated types for the profiles table
       supabase.from("profiles").upsert({
         id: user.id,
         notif_daily_reminder: next.dailyReminder,
         notif_streak_alerts: next.streakAlerts,
-      }).then(({ error }) => { if (error) console.error("[Profile] notif save failed:", error); });
+      } as any).then(({ error }) => { if (error) console.error("[Profile] notif save failed:", error); });
     }
   };
 

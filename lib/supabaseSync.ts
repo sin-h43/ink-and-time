@@ -1,15 +1,19 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from './supabaseClient';
 import { db } from './db';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-export const supabase = createClient(supabaseUrl, supabaseKey);
 
 const getLST = () => parseInt(localStorage.getItem('dome_last_sync') || '0', 10);
 const setLST = (time: number) => localStorage.setItem('dome_last_sync', time.toString());
 
 export async function pushLocalChangesToSupabase() {
   if (typeof window === 'undefined' || !navigator.onLine) return;
+
+  // Bail early if there's no authenticated session — RLS rejects everything
+  // anyway, and this avoids masking the real cause behind a generic PG error.
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    console.warn('[Sync] Skipped — no authenticated session.');
+    return;
+  }
 
   const lastSync = getLST();
   const now = Date.now();
@@ -22,7 +26,6 @@ export async function pushLocalChangesToSupabase() {
     if (!pendingTasks.length && !pendingDoodles.length && !pendingDays.length) return;
 
     if (pendingTasks.length > 0) {
-      // local_id / updated_at / deleted_at already match the remote column names
       const { error } = await supabase.from('tasks').upsert(
         pendingTasks.map(({ id, ...rest }) => rest),
         { onConflict: 'local_id' }

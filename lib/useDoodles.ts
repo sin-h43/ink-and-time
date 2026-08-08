@@ -19,8 +19,6 @@ export function useDoodles() {
       label,
       updated_at: Date.now(),
       deleted_at: null,
-      isDeleted: false,
-      synced: false,
     });
   };
 

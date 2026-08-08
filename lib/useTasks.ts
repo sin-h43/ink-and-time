@@ -24,29 +24,27 @@ export function useTasks() {
 
   const addTask = async (input: { date: string; title: string; time: string | null; importance: Importance }) => {
     await db.tasks.add({
-      uid: makeUid(),
+      local_id: makeUid(),
       date: input.date,
       title: input.title,
       time: input.time,
       completed: false,
       importance: input.importance,
-      updatedAt: Date.now(),
-      isSynced: false,
-      isDeleted: false,
+      updated_at: Date.now(),
       deleted_at: null,
     });
   };
 
-  const toggleTask = async (uid: number) => {
-    const t = await db.tasks.get(uid);
+  const toggleTask = async (id: number) => {
+    const t = await db.tasks.get(id);
     if (!t) return;
-    await db.tasks.update(uid, { completed: !t.completed, updatedAt: Date.now() });
+    await db.tasks.update(id, { completed: !t.completed, updated_at: Date.now() });
   };
 
-  const removeTask = async (uid: number) => {
-    const t = await db.tasks.get(uid);
+  const removeTask = async (id: number) => {
+    const t = await db.tasks.get(id);
     if (!t) return;
-    await db.tasks.update(uid, { deleted_at: Date.now(), updatedAt: Date.now() });
+    await db.tasks.update(id, { deleted_at: Date.now(), updated_at: Date.now() });
   };
 
   return { tasks, addTask, toggleTask, removeTask };

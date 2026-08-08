@@ -26,7 +26,7 @@ const VARS_BY_THEME = Object.fromEntries(
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
         {/*
           Runs before Next hydrates anything (strategy="beforeInteractive" is

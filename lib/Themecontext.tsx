@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { THEMES, THEME_ORDER, toCssVars, type ThemeId, type ThemeTokens } from "./Themes";
-import { supabase } from "./Supabaseclient";
+import { supabase } from "./supabaseClient";
 
 const STORAGE_KEY = "dome_theme";
 
