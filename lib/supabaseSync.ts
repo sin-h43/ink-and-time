@@ -1,21 +1,21 @@
 import { supabase } from './supabaseClient';
-import { db } from './db';
+import type { DoMEDatabase } from './db';
 
-const getLST = () => parseInt(localStorage.getItem('dome_last_sync') || '0', 10);
-const setLST = (time: number) => localStorage.setItem('dome_last_sync', time.toString());
+const lastSyncKey = (userId: string) => `dome_last_sync_${userId}`;
+const getLST = (userId: string) => parseInt(localStorage.getItem(lastSyncKey(userId)) || '0', 10);
+const setLST = (userId: string, time: number) => localStorage.setItem(lastSyncKey(userId), time.toString());
 
-export async function pushLocalChangesToSupabase() {
+export async function pushLocalChangesToSupabase(db: DoMEDatabase) {
   if (typeof window === 'undefined' || !navigator.onLine) return;
 
-  // Bail early if there's no authenticated session — RLS rejects everything
-  // anyway, and this avoids masking the real cause behind a generic PG error.
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
     console.warn('[Sync] Skipped — no authenticated session.');
     return;
   }
+  const userId = session.user.id;
 
-  const lastSync = getLST();
+  const lastSync = getLST(userId);
   const now = Date.now();
 
   try {
@@ -27,7 +27,10 @@ export async function pushLocalChangesToSupabase() {
 
     if (pendingTasks.length > 0) {
       const { error } = await supabase.from('tasks').upsert(
-        pendingTasks.map(({ id, ...rest }) => rest),
+        // Explicitly stamping user_id here (rather than relying only on the
+        // column default) guarantees correct attribution regardless of any
+        // default-evaluation edge cases, and matches the RLS check exactly.
+        pendingTasks.map(({ id, ...rest }) => ({ ...rest, user_id: userId })),
         { onConflict: 'local_id' }
       );
       if (error) throw error;
@@ -35,7 +38,7 @@ export async function pushLocalChangesToSupabase() {
 
     if (pendingDoodles.length > 0) {
       const { error } = await supabase.from('doodles').upsert(
-        pendingDoodles.map(({ id, iconId, ...rest }) => ({ ...rest, icon_id: iconId })),
+        pendingDoodles.map(({ id, iconId, ...rest }) => ({ ...rest, icon_id: iconId, user_id: userId })),
         { onConflict: 'local_id' }
       );
       if (error) throw error;
@@ -43,13 +46,17 @@ export async function pushLocalChangesToSupabase() {
 
     if (pendingDays.length > 0) {
       const { error } = await supabase.from('days').upsert(
-        pendingDays.map(({ id, shadeId, ...rest }) => ({ ...rest, shade_id: shadeId })),
-        { onConflict: 'date' }
+        pendingDays.map(({ id, shadeId, ...rest }) => ({ ...rest, shade_id: shadeId, user_id: userId })),
+        // Matches the fixed unique constraint (date, user_id) — see the SQL
+        // migration below. With the old global `unique(date)` constraint,
+        // this MUST be updated too or every upsert will keep clobbering
+        // whichever user last wrote to that date.
+        { onConflict: 'date,user_id' }
       );
       if (error) throw error;
     }
 
-    setLST(now);
+    setLST(userId, now);
     console.log(`[Sync] Successfully pushed ${pendingTasks.length + pendingDoodles.length + pendingDays.length} records.`);
   } catch (error) {
     console.error('[Sync] Push failed:', error);
