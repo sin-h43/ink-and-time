@@ -1,30 +1,38 @@
-# doME — a hybrid to-do journal
+# doME — A Hybrid To-Do Journal 🖋️
 
-A local-first, doME-journal styled to-do list: frictionless quick-add, a
-GitHub-style streak heatmap, a monthly calendar with a doodle-sticker board,
-and a Focus/Pomodoro mode. Built with Next.js (App Router), Dexie
-(IndexedDB), and lucide-react.
+**doME** is a local-first, digital-journal-styled productivity web application. Designed with an aesthetic blend of digital journaling and functional task tracking, it combines frictionless quick-add task management, visual habit tracking, interactive monthly sticker boards, and a built-in Focus/Pomodoro workspace.
 
-## Run it locally
+---
 
-```bash
-npm install
-npm run dev
-```
+## ✨ Features
 
-  
+* **⚡ Frictionless Quick-Add**: Swiftly capture tasks, ideas, and daily to-dos without breaking your workflow flow.
+* **🔥 GitHub-Style Streak Heatmap**: Visualize daily task completions and maintain your consistency over time with a dynamic activity matrix.
+* **📅 Interactive Calendar & Doodle Board**: Plan your month visually with a calendar view accompanied by a custom sticker and doodle board.
+* **⏱️ Focus & Pomodoro Workspace**: Integrated timer mode to execute deep work sessions seamlessly.
+* **🔒 Local-First Storage**: Powered by IndexedDB via Dexie.js—your data stays private and persists locally on your device.
 
-Also worth knowing:
+---
 
-- **Mood** is currently session-only state, not persisted. If you want it
-  saved, add a small `moods` table to `lib/db.ts` (`date` as the primary
-  key) the same way `tasks` and `doodles` are set up.
-- **Streak heatmap** aggregates from the `tasks` table client-side on every
-  render (see the comment in `components/doMETodoApp.tsx` above
-  `YearHeatmap`). The PRD describes a dedicated `daily_activity` aggregate
-  table for O(1) rendering at scale — worth adding once task volume is
-  large enough for the scan to actually matter.
+## 🛠️ Tech Stack
 
+* **Framework**: [Next.js](https://nextjs.org/) (App Router)
+* **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+* **Database / Local Storage**: [Dexie.js](https://dexie.org/) (IndexedDB Wrapper)
+* **Icons**: [Lucide React](https://lucide.dev/)
+* **Language**: TypeScript
 
+---
 
+## 🚀 Getting Started
 
+### Prerequisites
+
+Ensure you have [Node.js](https://nodejs.org/) (v18 or higher) and `npm` installed on your machine.
+
+### Installation
+
+1. **Clone the repository**:
+   ```bash
+   git clone [https://github.com/sin-h43/ink-and-time.git](https://github.com/sin-h43/ink-and-time.git)
+   cd ink-and-time
