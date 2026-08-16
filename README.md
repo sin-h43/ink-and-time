@@ -1,7 +1,7 @@
 # doME — A To-Do Journal 🖋️
 
 **doME** is a local-first, digital-journal-styled productivity web application. Designed with an aesthetic blend of digital journaling and functional task tracking, it combines frictionless quick-add task management, visual habit tracking, interactive monthly sticker boards, and a built-in Focus/Pomodoro workspace.
-
+yes
 ---
 
 ## ✨ Features
