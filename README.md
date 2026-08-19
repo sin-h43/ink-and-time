@@ -11,6 +11,7 @@ yes
 * **📅 Interactive Calendar & Doodle Board**: Plan your month visually with a calendar view accompanied by a custom sticker and doodle board.
 * **⏱️ Focus & Pomodoro Workspace**: Integrated timer mode to execute deep work sessions seamlessly.
 * **🔒 Local-First Storage**: Powered by IndexedDB via Dexie.js—your data stays private and persists locally on your device.
+* blabla
 
 ---
 
